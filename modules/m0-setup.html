@@ -204,7 +204,9 @@ entradas = [<span class="str">"42"</span>, <span class="str">"abc"</span>, <span
             && /platform\.(platform|system|machine|release|version)\s*\(/.test(c);
       },
       'listcomp': function (c) {
-        return /$$[^$$]*\bfor\s+\w+\s+in\s+/.test(c);
+        return c.indexOf('[') !== -1
+            && c.indexOf(' for ') !== -1
+            && c.indexOf(' in ') !== -1;
       },
       'dictget': function (c) {
         return /\{[^}]*\}\s*\.get\s*\(/.test(c)
