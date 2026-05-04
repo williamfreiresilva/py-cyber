@@ -3,17 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>M0 · Setup · py-cyber</title>
+<title>M0 · Setup &amp; Foundations — py-cyber</title>
 <link rel="stylesheet" href="../assets/css/theme.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
-<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
-<script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
 </head>
 <body>
 
-<div class="topbar">
-  <div class="logo">PY·CYBER</div>
+<nav class="topbar">
+  <span class="logo">PY·CYBER</span>
   <div class="nav-modules">
     <a href="../index.html">início</a>
     <a href="m0-setup.html" class="active">M0 · Setup</a>
@@ -21,19 +18,20 @@
     <a href="m2-data.html">M2 · Data</a>
     <a href="m3-apis.html">M3 · APIs</a>
     <a href="m4-appsec.html">M4 · AppSec</a>
-    <a href="m5-soc.html">M5 · SOC</a>
+    <a href="m5-forensics.html">M5 · SOC</a>
     <a href="m6-async.html">M6 · Async</a>
     <a href="m7-pipelines.html">M7 · Pipelines</a>
+    <a href="m8-career.html">M8 · Career</a>
   </div>
-</div>
+</nav>
 
-<div class="main">
+<main class="main">
 
-  <div class="theory">
+  <section class="theory">
     <div class="module-tag">MODULE 0</div>
     <h1>Why Python? <span class="accent">Setup &amp; Foundations</span></h1>
-    <div class="subtitle">Antes da primeira linha — entenda por que Python domina security automation e configure um ambiente limpo.</div>
-    <div class="badge">FOUNDATION</div>
+    <p class="subtitle">Antes da primeira linha — entenda por que Python domina security automation e configure um ambiente limpo.</p>
+    <span class="badge">FOUNDATION</span>
 
     <h2>Por que Python para analistas</h2>
     <div class="grid-2">
@@ -62,7 +60,7 @@
 
     <h2>Ambiente de trabalho</h2>
     <p>O terminal à direita roda <strong>CPython 3.11</strong> em WebAssembly. Para o seu ambiente local:</p>
-    <pre class="code-block"><span class="lang-tag">BASH</span><span class="comment"># Verificar versão</span>
+<pre class="code-block"><span class="lang-tag">BASH</span><span class="comment"># Verificar versão</span>
 python --version
 
 <span class="comment"># Criar e ativar venv</span>
@@ -78,99 +76,152 @@ pip freeze &gt; requirements.txt</pre>
 
     <div class="warning">
       <span class="label">⚠ NUNCA COMMITE</span>
-      <code class="inline">.venv/</code> e <code class="inline">.env</code>. API keys em variáveis de ambiente, nunca hardcoded.
+      <code class="inline">.venv/</code> e <code class="inline">.env</code>.
+      API keys em variáveis de ambiente, nunca hardcoded.
     </div>
 
     <h2>Padrões essenciais</h2>
+
     <h3>1. Versão do Python</h3>
-    <pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> sys
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> sys
 sys.version</pre>
 
     <h3>2. Plataforma de execução</h3>
-    <pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> platform
-platform.platform()</pre>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> platform
+platform.<span class="fn">platform</span>()</pre>
 
     <h3>3. List comprehensions — limpeza de IOCs</h3>
-    <pre class="code-block"><span class="lang-tag">PYTHON</span>[x*<span class="num">2</span> <span class="kw">for</span> x <span class="kw">in</span> <span class="fn">range</span>(<span class="num">5</span>)]
-<span class="comment"># aplicação real:</span>
-ips = [<span class="str">"192.168.1.1 "</span>, <span class="str">" 10.0.0.5"</span>]
-[ip.strip() <span class="kw">for</span> ip <span class="kw">in</span> ips <span class="kw">if</span> ip.strip()]</pre>
+<pre class="code-block"><span class="lang-tag">PYTHON</span>[x*<span class="num">2</span> <span class="kw">for</span> x <span class="kw">in</span> <span class="fn">range</span>(<span class="num">5</span>)]
+
+<span class="comment"># aplicação real — limpar lista de IPs com espaços</span>
+ips = [<span class="str">"192.168.1.1 "</span>, <span class="str">" 10.0.0.5"</span>, <span class="str">""</span>]
+[ip.<span class="fn">strip</span>() <span class="kw">for</span> ip <span class="kw">in</span> ips <span class="kw">if</span> ip.<span class="fn">strip</span>()]</pre>
 
     <h3>4. Dict.get com default — APIs sempre retornam dict</h3>
-    <pre class="code-block"><span class="lang-tag">PYTHON</span>resp = {<span class="str">"malicious"</span>: <span class="num">5</span>, <span class="str">"suspicious"</span>: <span class="num">2</span>}
-resp.get(<span class="str">"malicious"</span>, <span class="num">0</span>)
-resp.get(<span class="str">"undetected"</span>, <span class="num">0</span>)  <span class="comment"># default seguro</span></pre>
+<pre class="code-block"><span class="lang-tag">PYTHON</span>resp = {<span class="str">"malicious"</span>: <span class="num">5</span>, <span class="str">"suspicious"</span>: <span class="num">2</span>}
+resp.<span class="fn">get</span>(<span class="str">"malicious"</span>, <span class="num">0</span>)
+resp.<span class="fn">get</span>(<span class="str">"undetected"</span>, <span class="num">0</span>)  <span class="comment"># default seguro</span></pre>
 
-    <h3>5. Try/except — APIs falham, scripts não podem cair</h3>
-    <pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">try</span>:
+    <h3>5. Tratamento de erro inline — APIs falham, scripts não podem cair</h3>
+    <p>
+      Em script <code class="inline">.py</code> normal você usa
+      <code class="inline">try/except</code> em bloco. No REPL,
+      uma técnica equivalente em uma linha é o
+      <strong>conditional expression</strong>:
+    </p>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="comment"># Bloco tradicional (em script)</span>
+<span class="kw">try</span>:
     result = <span class="fn">int</span>(<span class="str">"abc"</span>)
 <span class="kw">except</span> ValueError:
     result = <span class="str">"ok"</span>
-result</pre>
+
+<span class="comment"># Inline com list comprehension — útil pra parsing em massa</span>
+entradas = [<span class="str">"42"</span>, <span class="str">"abc"</span>, <span class="str">"7"</span>, <span class="str">"x"</span>]
+[<span class="fn">int</span>(x) <span class="kw">if</span> x.<span class="fn">isdigit</span>() <span class="kw">else</span> <span class="str">"skip"</span> <span class="kw">for</span> x <span class="kw">in</span> entradas]</pre>
 
     <div class="tip">
-      <span class="label">💡 DICA</span>
+      <span class="label">DICA</span>
       Clique em qualquer item do checklist para inserir o comando direto no terminal.
     </div>
-  </div>
+  </section>
 
-  <div class="right-pane">
+  <section class="right-pane">
     <div class="repl-header">
-      <div class="repl-dots"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div></div>
-      <div class="repl-title">python — pyodide 3.11 (wasm)</div>
-      <div class="repl-status loading" id="status">CARREGANDO...</div>
+      <div class="repl-dots">
+        <span class="dot r"></span>
+        <span class="dot y"></span>
+        <span class="dot g"></span>
+      </div>
+      <span class="repl-title">python — pyodide 3.11 (wasm)</span>
+      <span class="repl-status loading" id="status">CARREGANDO</span>
     </div>
 
     <div id="terminal"></div>
 
     <div class="checklist">
       <h4>CHECKLIST DO MÓDULO</h4>
-      <div class="desc">Execute os comandos no REPL. Detecção automática.</div>
+      <p class="desc">Clique para preencher o REPL ou digite. Detecção automática.</p>
 
       <div class="check-item" data-check="version">
-        <div class="check-box"></div><div class="check-num">1.</div>
-        <div class="check-text">import sys; sys.version</div>
+        <span class="check-box"></span>
+        <span class="check-num">1.</span>
+        <span class="check-text"><code>import sys; sys.version</code></span>
       </div>
+
       <div class="check-item" data-check="platform">
-        <div class="check-box"></div><div class="check-num">2.</div>
-        <div class="check-text">import platform; platform.platform()</div>
+        <span class="check-box"></span>
+        <span class="check-num">2.</span>
+        <span class="check-text"><code>import platform; platform.platform()</code></span>
       </div>
+
       <div class="check-item" data-check="listcomp">
-        <div class="check-box"></div><div class="check-num">3.</div>
-        <div class="check-text">[x*2 for x in range(5)]</div>
+        <span class="check-box"></span>
+        <span class="check-num">3.</span>
+        <span class="check-text"><code>[x*2 for x in range(5)]</code></span>
       </div>
+
       <div class="check-item" data-check="dictget">
-        <div class="check-box"></div><div class="check-num">4.</div>
-        <div class="check-text">{"malicious": 5}.get("malicious", 0)</div>
+        <span class="check-box"></span>
+        <span class="check-num">4.</span>
+        <span class="check-text"><code>{"malicious": 5}.get("malicious", 0)</code></span>
       </div>
-      <div class="check-item" data-check="try-except">
+
+      <div class="check-item" data-check="safe-parse">
         <span class="check-box"></span>
         <span class="check-num">5.</span>
-        <span class="check-text"><code>[int(x) if x.isdigit() else "skip" for x in ["1","abc","42"]]</code></span>
+        <span class="check-text"><code>[int(x) if x.isdigit() else "skip" for x in ["42","abc","7"]]</code></span>
       </div>
-      <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+
       <div class="actions">
         <a href="../index.html" class="btn">← módulos</a>
         <button class="btn" id="btn-reset">reset</button>
         <button class="btn primary" id="btn-validate" disabled>✓ validar módulo</button>
       </div>
+
+      <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
     </div>
-  </div>
-</div>
+  </section>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
 
 <script>
-window.MODULE_CONFIG = {
-  id: 'm0',
-  nextModule: 'm1-os-files.html',
-  checks: {
-    version:   (c) => /sys\s*\.\s*version/i.test(c),
-    platform:  (c) => /platform\s*\.\s*(platform|system|machine|release)/i.test(c),
-    listcomp:  (c) => /\[\s*\S.*\s+for\s+\w+\s+in\s+/is.test(c),
-    dictget:   (c) => /\{[^}]*\}\s*\.\s*get\s*\(/s.test(c) || /=\s*\{[^}]*\}[\s\S]*\.get\s*\(/.test(c),
-    tryexcept: (c) => /\btry\b\s*:/.test(c) && /\bexcept\b/.test(c),
-  }
-};
+(function () {
+  window.MODULE_CONFIG = {
+    id: 'm0',
+    nextModule: 'm1-os-files.html',
+    packages: [],
+    micropipPackages: [],
+    checks: {
+      'version': function (c) {
+        return /import\s+sys/.test(c) && /sys\.version/.test(c);
+      },
+      'platform': function (c) {
+        return /import\s+platform/.test(c)
+            && /platform\.(platform|system|machine|release|version)\s*\(/.test(c);
+      },
+      'listcomp': function (c) {
+        return /$$[^$$]*\bfor\s+\w+\s+in\s+/.test(c);
+      },
+      'dictget': function (c) {
+        return /\{[^}]*\}\s*\.get\s*\(/.test(c)
+            || (/\bdict\s*\(/.test(c) && /\.get\s*\(/.test(c))
+            || (/=\s*\{/.test(c) && /\.get\s*\(/.test(c));
+      },
+      'safe-parse': function (c) {
+        return /\bif\b/.test(c)
+            && /\belse\b/.test(c)
+            && /\bfor\b/.test(c)
+            && (/isdigit\s*\(/.test(c) || /try/.test(c));
+      }
+    }
+  };
+})();
 </script>
 <script src="../assets/js/pycyber.js"></script>
+
 </body>
 </html>
