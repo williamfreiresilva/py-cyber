@@ -143,11 +143,11 @@ result</pre>
         <div class="check-box"></div><div class="check-num">4.</div>
         <div class="check-text">{"malicious": 5}.get("malicious", 0)</div>
       </div>
-      <div class="check-item" data-check="tryexcept">
-        <div class="check-box"></div><div class="check-num">5.</div>
-        <div class="check-text">try: int("abc") except: "ok"</div>
+      <div class="check-item" data-check="try-except">
+        <span class="check-box"></span>
+        <span class="check-num">5.</span>
+        <span class="check-text"><code>[int(x) if x.isdigit() else "skip" for x in ["1","abc","42"]]</code></span>
       </div>
-
       <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
       <div class="actions">
         <a href="../index.html" class="btn">← módulos</a>
