@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M8 · Career &amp; Resources — py-cyber</title>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<style>
+  /* M8 não tem REPL — layout 1 coluna centralizado */
+  .main.single { grid-template-columns: 1fr; }
+  .theory.wide { max-width: 980px; margin: 0 auto; padding: 40px 60px; border-right: none; }
+  .resource-list { list-style: none; padding: 0; }
+  .resource-list li {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+  .resource-list li strong { color: var(--accent); }
+  .resource-list li .tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    background: var(--bg);
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin-right: 8px;
+  }
+  .cert-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 16px 0; }
+  .cert-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 14px;
+    border-radius: 4px;
+  }
+  .cert-card .name { color: var(--accent); font-weight: 700; margin-bottom: 4px; }
+  .cert-card .level {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--green);
+    letter-spacing: 1px;
+  }
+  .cert-card .desc { font-size: 12.5px; color: var(--text); margin-top: 6px; }
+  .roadmap-step {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 14px;
+    padding: 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+  .roadmap-step .num {
+    font-family: var(--mono);
+    font-size: 24px;
+    color: var(--accent);
+    font-weight: 700;
+    flex-shrink: 0;
+    width: 40px;
+  }
+  .roadmap-step .body h4 { color: #fff; margin-bottom: 4px; }
+  .roadmap-step .body p { font-size: 13px; color: var(--text-dim); margin: 0; }
+  .final-cta {
+    text-align: center;
+    padding: 40px 20px;
+    margin-top: 40px;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    background: rgba(244, 196, 48, 0.05);
+  }
+  .final-cta h2 { border: none; padding: 0; margin-bottom: 12px; font-size: 22px; }
+  .final-cta p { font-size: 14px; }
+  .final-cta .actions { justify-content: center; margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <span class="logo">PY·CYBER</span>
+  <div class="nav-modules">
+    <a href="../index.html">início</a>
+    <a href="m0-setup.html">M0 · Setup</a>
+    <a href="m1-os-files.html">M1 · OS &amp; Files</a>
+    <a href="m2-data.html">M2 · Data</a>
+    <a href="m3-apis.html">M3 · APIs</a>
+    <a href="m4-appsec.html">M4 · AppSec</a>
+    <a href="m5-forensics.html">M5 · SOC</a>
+    <a href="m6-async.html">M6 · Async</a>
+    <a href="m7-pipelines.html">M7 · Pipelines</a>
+    <a href="m8-career.html" class="active">M8 · Career</a>
+  </div>
+</nav>
+
+<main class="main single">
+
+  <section class="theory wide">
+    <div class="module-tag">MODULE 8 — FINAL</div>
+    <h1>Career &amp; <span class="accent">Resources</span></h1>
+    <p class="subtitle">Trilha de estudo, livros, CTFs, certificações e como continuar evoluindo depois daqui.</p>
+    <span class="badge">CAREER</span>
+
+    <h2>Você concluiu o py-cyber. E agora?</h2>
+    <p>
+      Você passou por 8 módulos cobrindo desde manipulação de filesystem até
+      pipelines async com criptografia. O que diferencia analistas que crescem
+      dos que estagnam não é o conteúdo aprendido — é a <strong>prática
+      contínua</strong> e a curadoria de fontes confiáveis. Este módulo é seu
+      mapa pra próxima fase.
+    </p>
+
+    <h2>Roadmap dos próximos 12 meses</h2>
+
+    <div class="roadmap-step">
+      <div class="num">01</div>
+      <div class="body">
+        <h4>Mês 1–2 · Consolidação</h4>
+        <p>Refaça os 7 módulos em ambiente local (não browser). Adapte cada
+        exemplo pro seu contexto real — logs do seu SOC, alertas da sua stack.
+        Comite tudo num repositório privado seu.</p>
+      </div>
+    </div>
+
+    <div class="roadmap-step">
+      <div class="num">02</div>
+      <div class="body">
+        <h4>Mês 3–4 · Projeto real</h4>
+        <p>Escolha UMA dor do seu dia: triagem manual, relatório semanal,
+        enrichment lento. Automatize com Python. Meça antes/depois. Apresente
+        pra equipe.</p>
+      </div>
+    </div>
+
+    <div class="roadmap-step">
+      <div class="num">03</div>
+      <div class="body">
+        <h4>Mês 5–6 · CTF + leitura técnica</h4>
+        <p>1 CTF por mês (HackTheBox, TryHackMe, picoCTF). Leia 2 livros da
+        lista abaixo. Comece a escrever writeups — mesmo que ninguém leia,
+        cristaliza o aprendizado.</p>
+      </div>
+    </div>
+
+    <div class="roadmap-step">
+      <div class="num">04</div>
+      <div class="body">
+        <h4>Mês 7–9 · Especialização</h4>
+        <p>Escolha um vertical: AppSec, Threat Hunting, Incident Response,
+        Cloud Security, Red Team. Vá fundo em UM. Generalista júnior é commodity;
+        especialista é raro.</p>
+      </div>
+    </div>
+
+    <div class="roadmap-step">
+      <div class="num">05</div>
+      <div class="body">
+        <h4>Mês 10–12 · Certificação + portfólio público</h4>
+        <p>Tire UMA certificação relevante pra sua trilha. Publique 3 projetos
+        no GitHub público. Escreva no LinkedIn ou blog. Sua próxima vaga vai
+        encontrar você, não o contrário.</p>
+      </div>
+    </div>
+
+    <h2>Livros que valem o tempo</h2>
+    <ul class="resource-list">
+      <li><span class="tag">PYTHON</span><strong>Black Hat Python</strong> — Justin Seitz &amp; Tim Arnold. O clássico de ofensiva em Python.</li>
+      <li><span class="tag">PYTHON</span><strong>Violent Python</strong> — TJ O'Connor. Mais antigo mas ainda formativo.</li>
+      <li><span class="tag">FORENSICS</span><strong>The Art of Memory Forensics</strong> — Ligh, Case, Levy &amp; Walters. Bíblia de Volatility.</li>
+      <li><span class="tag">IR</span><strong>Incident Response &amp; Computer Forensics</strong> — Luttgens, Pepe, Mandia.</li>
+      <li><span class="tag">APPSEC</span><strong>The Web Application Hacker's Handbook</strong> — Stuttard &amp; Pinto.</li>
+      <li><span class="tag">DETECTION</span><strong>Practical Threat Intelligence</strong> — Valentina Costa-Gazcón.</li>
+      <li><span class="tag">DESIGN</span><strong>Designing Secure Software</strong> — Loren Kohnfelder.</li>
+      <li><span class="tag">PYTHON</span><strong>Fluent Python (2ª ed)</strong> — Luciano Ramalho. Pra dominar a linguagem de verdade.</li>
+    </ul>
+
+    <h2>Plataformas de prática hands-on</h2>
+    <ul class="resource-list">
+      <li><span class="tag">CTF</span><strong>HackTheBox</strong> — máquinas e Pro Labs realistas. Academy tem trilhas pagas mas valem.</li>
+      <li><span class="tag">CTF</span><strong>TryHackMe</strong> — onboarding mais suave que HTB, ótimo pra começar.</li>
+      <li><span class="tag">BLUE</span><strong>LetsDefend</strong> — simula console de SOC com alertas reais.</li>
+      <li><span class="tag">BLUE</span><strong>CyberDefenders</strong> — desafios de blue team / DFIR.</li>
+      <li><span class="tag">CTF</span><strong>picoCTF</strong> — gratuito, didático, mantido pela CMU.</li>
+      <li><span class="tag">RANGE</span><strong>RangeForce</strong> — simulações corporativas de incidente.</li>
+      <li><span class="tag">CODE</span><strong>OverTheWire (Bandit, Narnia)</strong> — wargames de Linux/binário.</li>
+      <li><span class="tag">PYTHON</span><strong>Exercism (Python track)</strong> — exercícios revisados por mentor.</li>
+    </ul>
+
+    <h2>Certificações por trilha</h2>
+
+    <h3>Defensiva / SOC / IR</h3>
+    <div class="cert-grid">
+      <div class="cert-card">
+        <div class="level">ENTRY</div>
+        <div class="name">CompTIA Security+</div>
+        <div class="desc">Base teórica. Bom pra primeiro emprego, esperado por RH.</div>
+      </div>
+      <div class="cert-card">
+        <div class="level">ENTRY/MID</div>
+        <div class="name">BTL1 (Blue Team Level 1)</div>
+        <div class="desc">Hands-on, lab realista, custo justo. Excelente custo-benefício.</div>
+      </div>
+      <div class="cert-card">
+        <div class="level">MID</div>
+        <div class="name">CySA+ / CSA</div>
+        <div class="desc">Análise de comportamento em SOC. CompTIA e EC-Council.</div>
+      </div>
+      <div class="cert-card">
+        <div class="level">MID/SR</div>
+        <div class="name">GCIH / GCFA (SANS)</div>
+        <div class="desc">Padrão ouro de IR/forensics. Caro, mas porta de empresas top.</div>
+      </div>
+    </div>
+
+    <h3>Ofensiva / Pentest</h3>
+    <div class="cert-grid">
+      <div class="cert-card">
+        <div class="level">ENTRY</div>
+        <div class="name">eJPT (INE)</div>
+        <div class="desc">Ponto de entrada acessível em pentest prático.</div>
+      </div>
+      <div class="cert-card">
+        <div class="level">MID</div>
+        <div class="name">PNPT (TCM Security)</div>
+        <div class="desc">Pentest realista corporativo. Inclui AD e relatório.</div>
+      </div>
+      <div class="cert-card">
+        <div class="level">MID/SR</div>
+        <div class="name">OSCP (Offensive Security)</div>
+        <div class="desc">A certificação que mais abre portas em pentest. Brutal.</div>
+      </div>
+      <div class="cert-card">
+        <div class="level">SR</div>
+        <div class="name">OSEP / OSCE3</div>
+        <div class="desc">Bypass avançado, exploit dev. Após OSCP.</div>
+      </div>
+    </div>
+
+    <h3>Cloud Security</h3>
+    <div class="cert-grid">
+      <div class="cert-card">
+        <div class="level">ENTRY</div>
+        <div class="name">AWS Cloud Practitioner</div>
+        <div class="desc">Fundamentos AWS antes de qualquer security cloud.</div>
+      </div>
+      <div class="cert-card">
+        <div class="level">MID</div>
+        <div class="name">AWS Security Specialty</div>
+        <div class="desc">IAM, KMS, GuardDuty, detection em escala AWS.</div>
+      </div>
+      <div class="cert-card">
+        <div class="level">MID</div>
+        <div class="name">CCSP (ISC²)</div>
+        <div class="desc">Vendor-neutral. Reconhecida em compliance e arquitetura.</div>
+      </div>
+      <div class="cert-card">
+        <div class="level">SR</div>
+        <div class="name">CISSP</div>
+        <div class="desc">Liderança em segurança. Exige 5 anos comprovados.</div>
+      </div>
+    </div>
+
+    <h2>Comunidades pra acompanhar</h2>
+    <ul class="resource-list">
+      <li><span class="tag">FORUM</span><strong>r/netsec, r/AskNetsec, r/blueteamsec</strong> — Reddit ainda é vivo pra technical discussion.</li>
+      <li><span class="tag">CHAT</span><strong>Discord — InfoSec Prep, BlackHills InfoSec, TCM Security</strong>.</li>
+      <li><span class="tag">BR</span><strong>Mente Binária, Papo Binário, Hackers do Bem</strong> — comunidade BR forte.</li>
+      <li><span class="tag">FEED</span><strong>Risky Business (podcast)</strong> — semanal, news + análise técnica.</li>
+      <li><span class="tag">FEED</span><strong>SANS ISC StormCast</strong> — diário, 5 min, ameaças do dia.</li>
+      <li><span class="tag">NEWS</span><strong>The DFIR Report</strong> — writeups de intrusão real, mensal.</li>
+      <li><span class="tag">CODE</span><strong>Awesome Lists no GitHub</strong> — awesome-pentest, awesome-incident-response, awesome-malware-analysis.</li>
+    </ul>
+
+    <h2>Hábitos que separam júnior de pleno</h2>
+    <ul>
+      <li><strong>Leia código alheio</strong> — clone projetos open source de DFIR (Velociraptor, GRR, TheHive) e leia.</li>
+      <li><strong>Documente o que você faz</strong> — runbooks pra você mesmo daqui a 6 meses.</li>
+      <li><strong>Automatize o tédio</strong> — qualquer tarefa manual feita 3+ vezes vira script.</li>
+      <li><strong>Saiba comunicar com não-técnicos</strong> — escrever bem é multiplicador de carreira.</li>
+      <li><strong>Mantenha um lab pessoal</strong> — VM com Splunk free, ELK, Suricata. Quebre coisas em casa.</li>
+      <li><strong>Saiba quando NÃO usar Python</strong> — bash às vezes é melhor, Go é melhor pra tooling distribuído, Rust pra perf.</li>
+    </ul>
+
+    <h2>Onde Python te leva em segurança</h2>
+    <div class="grid-2">
+      <div class="info-card">
+        <div class="title">CARREIRAS POSSÍVEIS</div>
+        <ul>
+          <li>SOC Analyst (T1 → T3)</li>
+          <li>Threat Hunter</li>
+          <li>Incident Responder / DFIR</li>
+          <li>Detection Engineer</li>
+          <li>Security Automation Engineer</li>
+          <li>AppSec Engineer</li>
+          <li>Red Team Operator</li>
+          <li>Security Researcher</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="title">FAIXAS SALARIAIS BR (2024)</div>
+        <ul>
+          <li>SOC T1: R$ 4–7k</li>
+          <li>SOC T2 / Threat Hunter: R$ 8–14k</li>
+          <li>DFIR / Detection Eng: R$ 12–22k</li>
+          <li>AppSec Sr / Cloud Sec: R$ 15–28k</li>
+          <li>Remoto USD: USD 60k–150k+</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="tip">
+      <span class="label">REALISMO</span>
+      Faixas variam absurdamente por empresa, cidade e moeda. O que importa é
+      a tendência: cada degrau técnico bem dado dobra o teto. E remoto em USD
+      mudou o jogo nos últimos 3 anos pra quem fala inglês.
+    </div>
+
+    <h2>Última recomendação</h2>
+    <p>
+      O melhor profissional de segurança que existe é o que <strong>continua
+      curioso</strong>. Ferramentas mudam, vendor muda, certificação envelhece —
+      mas a curiosidade técnica dobra de valor a cada ano. Continue quebrando
+      coisas em laboratório, continue lendo writeups, continue escrevendo código.
+    </p>
+    <p>
+      Python é um meio. Segurança é um meio. O fim é proteger usuários, sistemas
+      e dados de quem quer fazer mal a eles. Mantém isso no horizonte.
+    </p>
+
+    <div class="final-cta">
+      <h2>🎓 Você concluiu o py-cyber.</h2>
+      <p>
+        8 módulos · 50+ exercícios práticos · da base ao pipeline completo.<br>
+        Agora vai construir coisa de verdade.
+      </p>
+      <div class="actions">
+        <a href="../index.html" class="btn primary">← voltar à trilha</a>
+        <a href="m0-setup.html" class="btn">revisar M0</a>
+        <button class="btn primary" id="btn-validate">✓ marcar curso como concluído</button>
+      </div>
+    </div>
+
+  </section>
+
+</main>
+
+<script>
+(function () {
+  // M8 não tem REPL nem checks — só marca como completo no clique
+  const COMPLETE_KEY = 'pycyber_m8_complete';
+  const btn = document.getElementById('btn-validate');
+  if (btn) {
+    btn.addEventListener('click', function () {
+      localStorage.setItem(COMPLETE_KEY, '1');
+      // marca todos como concluídos no índice
+      ['m0','m1','m2','m3','m4','m5','m6','m7','m8'].forEach(function (m) {
+        // não força os outros, só registra m8
+      });
+      alert('🎉 py-cyber concluído!\n\nObrigado por chegar até aqui.\nAgora vai construir.');
+      window.location.href = '../index.html';
+    });
+  }
+})();
+</script>
+
+</body>
+</html>

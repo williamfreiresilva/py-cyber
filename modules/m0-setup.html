@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M0 · Setup · py-cyber</title>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">PY·CYBER</div>
+  <div class="nav-modules">
+    <a href="../index.html">início</a>
+    <a href="m0-setup.html" class="active">M0 · Setup</a>
+    <a href="m1-os-files.html">M1 · OS &amp; Files</a>
+    <a href="m2-data.html">M2 · Data</a>
+    <a href="m3-apis.html">M3 · APIs</a>
+    <a href="m4-appsec.html">M4 · AppSec</a>
+    <a href="m5-soc.html">M5 · SOC</a>
+    <a href="m6-async.html">M6 · Async</a>
+    <a href="m7-pipelines.html">M7 · Pipelines</a>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="theory">
+    <div class="module-tag">MODULE 0</div>
+    <h1>Why Python? <span class="accent">Setup &amp; Foundations</span></h1>
+    <div class="subtitle">Antes da primeira linha — entenda por que Python domina security automation e configure um ambiente limpo.</div>
+    <div class="badge">FOUNDATION</div>
+
+    <h2>Por que Python para analistas</h2>
+    <div class="grid-2">
+      <div class="info-card">
+        <div class="title">PYTHON DOMINA SECURITY</div>
+        <ul>
+          <li><strong>Sintaxe legível</strong> — leia seu script 6 meses depois</li>
+          <li><strong>Ecossistema massivo</strong> — todo vendor publica SDK Python</li>
+          <li><strong>Prototipação rápida</strong> — IOC enricher em 30 minutos</li>
+          <li><strong>Cross-platform</strong> — Windows, Linux, macOS</li>
+          <li><strong>Padrão de indústria</strong> — Splunk, CrowdStrike, MISP, Volatility</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="title">O QUE VOCÊ AUTOMATIZA</div>
+        <ul>
+          <li>IOC enrichment em escala</li>
+          <li>Log parsing — eventos, IPs, usuários</li>
+          <li>Alert triage por severidade</li>
+          <li>Coleta de evidência forense</li>
+          <li>Queries em APIs EDR/SIEM</li>
+          <li>Timeline forense de múltiplas fontes</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>Ambiente de trabalho</h2>
+    <p>O terminal à direita roda <strong>CPython 3.11</strong> em WebAssembly. Para o seu ambiente local:</p>
+    <pre class="code-block"><span class="lang-tag">BASH</span><span class="comment"># Verificar versão</span>
+python --version
+
+<span class="comment"># Criar e ativar venv</span>
+python -m venv .venv
+source .venv/bin/activate    <span class="comment"># Linux/macOS</span>
+.venv\Scripts\activate       <span class="comment"># Windows</span>
+
+<span class="comment"># Stack de segurança</span>
+pip install requests aiohttp pydantic pandas openpyxl \
+    scapy psutil cryptography paramiko pyyaml bandit
+
+pip freeze &gt; requirements.txt</pre>
+
+    <div class="warning">
+      <span class="label">⚠ NUNCA COMMITE</span>
+      <code class="inline">.venv/</code> e <code class="inline">.env</code>. API keys em variáveis de ambiente, nunca hardcoded.
+    </div>
+
+    <h2>Padrões essenciais</h2>
+    <h3>1. Versão do Python</h3>
+    <pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> sys
+sys.version</pre>
+
+    <h3>2. Plataforma de execução</h3>
+    <pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> platform
+platform.platform()</pre>
+
+    <h3>3. List comprehensions — limpeza de IOCs</h3>
+    <pre class="code-block"><span class="lang-tag">PYTHON</span>[x*<span class="num">2</span> <span class="kw">for</span> x <span class="kw">in</span> <span class="fn">range</span>(<span class="num">5</span>)]
+<span class="comment"># aplicação real:</span>
+ips = [<span class="str">"192.168.1.1 "</span>, <span class="str">" 10.0.0.5"</span>]
+[ip.strip() <span class="kw">for</span> ip <span class="kw">in</span> ips <span class="kw">if</span> ip.strip()]</pre>
+
+    <h3>4. Dict.get com default — APIs sempre retornam dict</h3>
+    <pre class="code-block"><span class="lang-tag">PYTHON</span>resp = {<span class="str">"malicious"</span>: <span class="num">5</span>, <span class="str">"suspicious"</span>: <span class="num">2</span>}
+resp.get(<span class="str">"malicious"</span>, <span class="num">0</span>)
+resp.get(<span class="str">"undetected"</span>, <span class="num">0</span>)  <span class="comment"># default seguro</span></pre>
+
+    <h3>5. Try/except — APIs falham, scripts não podem cair</h3>
+    <pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">try</span>:
+    result = <span class="fn">int</span>(<span class="str">"abc"</span>)
+<span class="kw">except</span> ValueError:
+    result = <span class="str">"ok"</span>
+result</pre>
+
+    <div class="tip">
+      <span class="label">💡 DICA</span>
+      Clique em qualquer item do checklist para inserir o comando direto no terminal.
+    </div>
+  </div>
+
+  <div class="right-pane">
+    <div class="repl-header">
+      <div class="repl-dots"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div></div>
+      <div class="repl-title">python — pyodide 3.11 (wasm)</div>
+      <div class="repl-status loading" id="status">CARREGANDO...</div>
+    </div>
+
+    <div id="terminal"></div>
+
+    <div class="checklist">
+      <h4>CHECKLIST DO MÓDULO</h4>
+      <div class="desc">Execute os comandos no REPL. Detecção automática.</div>
+
+      <div class="check-item" data-check="version">
+        <div class="check-box"></div><div class="check-num">1.</div>
+        <div class="check-text">import sys; sys.version</div>
+      </div>
+      <div class="check-item" data-check="platform">
+        <div class="check-box"></div><div class="check-num">2.</div>
+        <div class="check-text">import platform; platform.platform()</div>
+      </div>
+      <div class="check-item" data-check="listcomp">
+        <div class="check-box"></div><div class="check-num">3.</div>
+        <div class="check-text">[x*2 for x in range(5)]</div>
+      </div>
+      <div class="check-item" data-check="dictget">
+        <div class="check-box"></div><div class="check-num">4.</div>
+        <div class="check-text">{"malicious": 5}.get("malicious", 0)</div>
+      </div>
+      <div class="check-item" data-check="tryexcept">
+        <div class="check-box"></div><div class="check-num">5.</div>
+        <div class="check-text">try: int("abc") except: "ok"</div>
+      </div>
+
+      <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+      <div class="actions">
+        <a href="../index.html" class="btn">← módulos</a>
+        <button class="btn" id="btn-reset">reset</button>
+        <button class="btn primary" id="btn-validate" disabled>✓ validar módulo</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.MODULE_CONFIG = {
+  id: 'm0',
+  nextModule: 'm1-os-files.html',
+  checks: {
+    version:   (c) => /sys\s*\.\s*version/i.test(c),
+    platform:  (c) => /platform\s*\.\s*(platform|system|machine|release)/i.test(c),
+    listcomp:  (c) => /\[\s*\S.*\s+for\s+\w+\s+in\s+/is.test(c),
+    dictget:   (c) => /\{[^}]*\}\s*\.\s*get\s*\(/s.test(c) || /=\s*\{[^}]*\}[\s\S]*\.get\s*\(/.test(c),
+    tryexcept: (c) => /\btry\b\s*:/.test(c) && /\bexcept\b/.test(c),
+  }
+};
+</script>
+<script src="../assets/js/pycyber.js"></script>
+</body>
+</html>

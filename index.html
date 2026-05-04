@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>py-cyber · Python para Cyber Security</title>
+<link rel="stylesheet" href="assets/css/theme.css">
+<style>
+  body { overflow-y: auto; height: auto; }
+  .hero {
+    min-height: calc(100vh - 48px);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 60px 20px;
+    background:
+      radial-gradient(ellipse at top, rgba(244,196,48,0.08) 0%, transparent 50%),
+      var(--bg);
+  }
+  .hero-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--green);
+    border: 1px solid var(--green);
+    padding: 6px 16px;
+    border-radius: 20px;
+    letter-spacing: 2px;
+    margin-bottom: 32px;
+  }
+  .hero h1 {
+    font-size: 56px;
+    text-align: center;
+    color: #fff;
+    line-height: 1.1;
+    margin-bottom: 24px;
+    max-width: 900px;
+  }
+  .hero h1 .accent { color: var(--accent); }
+  .hero p.lead {
+    max-width: 700px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 16px;
+    line-height: 1.7;
+    margin-bottom: 48px;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
+    max-width: 900px;
+    width: 100%;
+    margin-bottom: 48px;
+  }
+  .stat {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px;
+    text-align: center;
+  }
+  .stat .num {
+    font-family: var(--mono);
+    font-size: 28px;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .stat .label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1.5px;
+    margin-top: 4px;
+  }
+  .versions {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    justify-content: center;
+    max-width: 800px;
+    margin-bottom: 32px;
+  }
+  .version-chip {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 6px 14px;
+    border: 1px solid var(--blue);
+    color: var(--blue);
+    border-radius: 20px;
+  }
+  .terminal-line {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--text-dim);
+    margin-top: 16px;
+  }
+  .terminal-line .user { color: var(--green); }
+  .terminal-line .at { color: var(--text); }
+  .terminal-line .path { color: var(--blue); }
+  .terminal-line .cmd { color: var(--accent); }
+
+  .modules-section {
+    padding: 60px 40px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .modules-section h2 {
+    font-size: 24px;
+    color: #fff;
+    margin-bottom: 8px;
+    border: none;
+    padding: 0;
+  }
+  .modules-section .sub {
+    color: var(--text-dim);
+    margin-bottom: 32px;
+    font-size: 14px;
+  }
+  .progress-overall {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin-bottom: 32px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .progress-overall .bar {
+    height: 4px; background: var(--bg);
+    border-radius: 2px; overflow: hidden;
+    margin-top: 10px;
+  }
+  .progress-overall .fill {
+    height: 100%; background: var(--green);
+    transition: width .4s;
+  }
+
+  .modules-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .module-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px;
+    transition: all .2s;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    position: relative;
+  }
+  .module-card.available:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+  .module-card.locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .module-card.complete {
+    border-color: var(--green);
+  }
+  .module-card .head {
+    display: flex; justify-content: space-between;
+    align-items: center; margin-bottom: 10px;
+  }
+  .module-card .id {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 1.5px;
+  }
+  .module-card .status {
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 1px;
+  }
+  .status.s-locked { background: var(--border); color: var(--text-dim); }
+  .status.s-pending { background: rgba(244,196,48,0.15); color: var(--accent); }
+  .status.s-done { background: rgba(74,222,128,0.15); color: var(--green); }
+  .module-card h3 {
+    font-size: 16px;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+  .module-card .desc {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  .module-card .topics {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-top: 12px;
+  }
+  .module-card .topic {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    background: var(--bg);
+    padding: 2px 8px;
+    border-radius: 3px;
+  }
+
+  @media (max-width: 900px) {
+    .hero h1 { font-size: 36px; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .modules-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">PY·CYBER</div>
+  <div class="nav-modules">
+    <a href="index.html" class="active">início</a>
+    <a href="modules/m0-setup.html">módulos</a>
+    <a href="#about">sobre</a>
+  </div>
+</div>
+
+<section class="hero">
+  <div class="hero-tag">SECURITY AUTOMATION · SOC · CSIRT · APPSEC</div>
+  <h1>$ Python para <span class="accent">Cyber Security</span><br>sem mocking, sem teoria vazia</h1>
+  <p class="lead">
+    Curso interativo com 9 módulos, REPL Python 3.11 real no navegador via Pyodide,
+    exercícios de IOC enrichment, log parsing, forense e automação SOC.
+    Suas API keys nunca saem do seu browser.
+  </p>
+
+  <div class="stats">
+    <div class="stat"><div class="num">9</div><div class="label">MÓDULOS</div></div>
+    <div class="stat"><div class="num">40+</div><div class="label">EXERCÍCIOS</div></div>
+    <div class="stat"><div class="num">60h</div><div class="label">CARGA</div></div>
+    <div class="stat"><div class="num">WASM</div><div class="label">PYODIDE</div></div>
+    <div class="stat"><div class="num">0</div><div class="label">BACKEND</div></div>
+  </div>
+
+  <div class="versions">
+    <div class="version-chip">Python 3.10+</div>
+    <div class="version-chip">Pyodide 0.26</div>
+    <div class="version-chip">requests · pandas</div>
+    <div class="version-chip">pydantic · cryptography</div>
+    <div class="version-chip">re · datetime · json</div>
+    <div class="version-chip">asyncio · aiohttp</div>
+  </div>
+
+  <div class="terminal-line">
+    <span class="user">analyst</span><span class="at">@</span><span class="user">py-cyber</span><span class="at">:</span><span class="path">~/lab</span><span class="at">$</span>
+    <span class="cmd">./start --no-mock --real-iocs --bring-your-own-keys</span>
+  </div>
+</section>
+
+<section class="modules-section" id="modules">
+  <h2>Trilha completa</h2>
+  <div class="sub">Módulos progressivos. Conclua um para destravar o próximo.</div>
+
+  <div class="progress-overall">
+    <div>PROGRESSO GERAL · <span id="progress-text">0/9 módulos</span></div>
+    <div class="bar"><div class="fill" id="progress-fill"></div></div>
+  </div>
+
+  <div class="modules-grid" id="modules-grid"></div>
+</section>
+
+<script>
+const MODULES = [
+  { id: 'm0', file: 'modules/m0-setup.html', title: 'Setup & Foundations',
+    desc: 'Por que Python, ambiente virtual, padrões essenciais para analistas.',
+    topics: ['venv', 'pip', 'sintaxe', 'patterns'] },
+  { id: 'm1', file: 'modules/m1-os-files.html', title: 'File System & OS',
+    desc: 'os, pathlib, shutil, subprocess, psutil, glob — manipular arquivos e processos.',
+    topics: ['os', 'pathlib', 'shutil', 'glob'] },
+  { id: 'm2', file: 'modules/m2-data.html', title: 'Data & Log Analysis',
+    desc: 'pandas, CSV/JSON, openpyxl, SQLAlchemy — ingerir e filtrar logs em escala.',
+    topics: ['pandas', 'csv', 'json', 'sql'] },
+  { id: 'm3', file: 'modules/m3-apis.html', title: 'APIs & EDR/SIEM',
+    desc: 'requests, pydantic, OAuth2/JWT, VirusTotal, CrowdStrike, QRadar.',
+    topics: ['requests', 'pydantic', 'oauth2'] },
+  { id: 'm4', file: 'modules/m4-appsec.html', title: 'Application Security',
+    desc: 'bandit, PyYAML safe, BeautifulSoup, OWASP ZAP API.',
+    topics: ['bandit', 'yaml', 'zap'] },
+  { id: 'm5', file: 'modules/m5-soc.html', title: 'SOC & CSIRT Forensics',
+    desc: 'regex, hashing, datetime forense, scapy, paramiko — resposta a incidente.',
+    topics: ['re', 'hashlib', 'scapy'] },
+  { id: 'm6', file: 'modules/m6-async.html', title: 'Async Programming',
+    desc: 'asyncio, aiohttp, paralelização real para enrichment em escala.',
+    topics: ['asyncio', 'aiohttp'] },
+  { id: 'm7', file: 'modules/m7-pipelines.html', title: 'Real-World Pipelines',
+    desc: 'IOC enrichment, alert triage, forensic file collector — projetos completos.',
+    topics: ['pipeline', 'enrichment', 'triage'] },
+  { id: 'm8', file: 'modules/m8-resources.html', title: 'Career & Resources',
+    desc: 'Trilha de estudo, livros, CTFs, certificações relevantes.',
+    topics: ['carreira', 'estudo'] },
+];
+
+function getStatus(id, idx) {
+  const complete = localStorage.getItem(`pycyber_${id}_complete`) === '1';
+  if (complete) return 'complete';
+  if (idx === 0) return 'available';
+  const prev = MODULES[idx - 1];
+  const prevDone = localStorage.getItem(`pycyber_${prev.id}_complete`) === '1';
+  return prevDone ? 'available' : 'locked';
+}
+
+function renderModules() {
+  const grid = document.getElementById('modules-grid');
+  let done = 0;
+  grid.innerHTML = MODULES.map((m, i) => {
+    const status = getStatus(m.id, i);
+    if (status === 'complete') done++;
+    const tag = { complete: ['s-done', 'CONCLUÍDO'],
+                  available: ['s-pending', 'DISPONÍVEL'],
+                  locked: ['s-locked', 'BLOQUEADO'] }[status];
+    const href = status === 'locked' ? '#' : m.file;
+    return `
+      <a href="${href}" class="module-card ${status}" ${status==='locked'?'onclick="return false"':''}>
+        <div class="head">
+          <div class="id">${m.id.toUpperCase()}</div>
+          <div class="status ${tag[0]}">${tag[1]}</div>
+        </div>
+        <h3>${m.title}</h3>
+        <div class="desc">${m.desc}</div>
+        <div class="topics">${m.topics.map(t=>`<span class="topic">${t}</span>`).join('')}</div>
+      </a>`;
+  }).join('');
+
+  const pct = (done / MODULES.length) * 100;
+  document.getElementById('progress-text').textContent = `${done}/${MODULES.length} módulos · ${Math.round(pct)}%`;
+  document.getElementById('progress-fill').style.width = pct + '%';
+}
+
+renderModules();
+</script>
+</body>
+</html>

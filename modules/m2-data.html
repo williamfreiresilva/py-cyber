@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M2 · Data & Log Analysis — py-cyber</title>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+</head>
+<body>
+
+<nav class="topbar">
+  <span class="logo">PY·CYBER</span>
+  <div class="nav-modules">
+    <a href="../index.html">início</a>
+    <a href="m0-setup.html">M0 · Setup</a>
+    <a href="m1-os-files.html">M1 · OS &amp; Files</a>
+    <a href="m2-data.html" class="active">M2 · Data</a>
+    <a href="m3-apis.html">M3 · APIs</a>
+    <a href="m4-appsec.html">M4 · AppSec</a>
+    <a href="m5-forensics.html">M5 · SOC</a>
+    <a href="m6-async.html">M6 · Async</a>
+    <a href="m7-pipelines.html">M7 · Pipelines</a>
+  </div>
+</nav>
+
+<main class="main">
+
+  <!-- ========== TEORIA ========== -->
+  <section class="theory">
+    <div class="module-tag">MODULE 2</div>
+    <h1>Data &amp; <span class="accent">Log Analysis</span></h1>
+    <p class="subtitle">Pandas como planilha programável do analista de SOC — ingestão, filtros, agregações e relatórios em XLSX.</p>
+    <span class="badge">DATA</span>
+
+    <h2>Por que pandas no SOC?</h2>
+    <p>
+      Logs viraram tabelas. Export do SIEM, alerta do EDR, feed de IOCs do MISP, CSV do
+      Splunk — tudo cai como linha × coluna. Pandas transforma essa massa em consultas
+      tipo SQL, com a flexibilidade do Python por cima.
+    </p>
+
+    <div class="grid-2">
+      <div class="info-card">
+        <div class="title">CASOS REAIS</div>
+        <ul>
+          <li>Contar tentativas de login por IP</li>
+          <li>Juntar duas planilhas de IOCs</li>
+          <li>Detectar usuário em múltiplos hosts</li>
+          <li>Gerar XLSX para a gerência</li>
+          <li>Triagem de alertas por severidade</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="title">STACK DESTE MÓDULO</div>
+        <ul>
+          <li><code class="inline">pandas</code> — DataFrames</li>
+          <li><code class="inline">numpy</code> — base numérica</li>
+          <li><code class="inline">openpyxl</code> — XLSX</li>
+          <li><code class="inline">re</code> — parsing de log</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>DataFrame: a estrutura central</h2>
+    <p>
+      Um <code class="inline">DataFrame</code> é uma tabela: colunas tipadas, índice
+      de linhas, métodos para inspeção rápida.
+    </p>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> pandas <span class="kw">as</span> pd
+
+iocs = {
+    <span class="str">"ip"</span>: [<span class="str">"1.1.1.1"</span>, <span class="str">"8.8.8.8"</span>, <span class="str">"45.33.32.156"</span>],
+    <span class="str">"score"</span>: [<span class="num">0</span>, <span class="num">2</span>, <span class="num">8</span>],
+    <span class="str">"tag"</span>: [<span class="str">"clean"</span>, <span class="str">"suspicious"</span>, <span class="str">"malicious"</span>],
+}
+df = pd.<span class="fn">DataFrame</span>(iocs)
+df.<span class="fn">head</span>()
+df.<span class="fn">info</span>()
+df.shape</pre>
+
+    <h2>Filtros e seleção</h2>
+    <p>
+      Boolean masks são o pão com manteiga. Você passa uma série de
+      <code class="inline">True/False</code> entre colchetes e o DataFrame
+      retorna só as linhas que casam.
+    </p>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="comment"># IOCs com score acima de 5</span>
+df[df[<span class="str">"score"</span>] > <span class="num">5</span>]
+
+<span class="comment"># Combinando condições — use & e | com parênteses</span>
+df[(df[<span class="str">"score"</span>] > <span class="num">0</span>) &amp; (df[<span class="str">"tag"</span>] != <span class="str">"clean"</span>)]
+
+<span class="comment"># Sintaxe alternativa com query()</span>
+df.<span class="fn">query</span>(<span class="str">"score > 5"</span>)</pre>
+
+    <h2>Group by — o coração da detecção</h2>
+    <p>
+      Agregar por chave é o que transforma log bruto em sinal. "Quantas vezes cada IP
+      tentou logar?" é um <code class="inline">groupby</code>.
+    </p>
+<pre class="code-block"><span class="lang-tag">PYTHON</span>tentativas = pd.<span class="fn">DataFrame</span>({
+    <span class="str">"ip"</span>: [<span class="str">"10.0.0.5"</span>, <span class="str">"10.0.0.5"</span>, <span class="str">"10.0.0.5"</span>,
+           <span class="str">"192.168.1.7"</span>, <span class="str">"45.33.32.156"</span>, <span class="str">"45.33.32.156"</span>],
+    <span class="str">"status"</span>: [<span class="str">"fail"</span>, <span class="str">"fail"</span>, <span class="str">"ok"</span>, <span class="str">"ok"</span>, <span class="str">"fail"</span>, <span class="str">"fail"</span>],
+})
+
+<span class="comment"># Total de eventos por IP</span>
+tentativas.<span class="fn">groupby</span>(<span class="str">"ip"</span>).<span class="fn">size</span>()
+
+<span class="comment"># Falhas por IP — ordenadas</span>
+falhas = tentativas[tentativas[<span class="str">"status"</span>] == <span class="str">"fail"</span>]
+falhas.<span class="fn">groupby</span>(<span class="str">"ip"</span>).<span class="fn">size</span>().<span class="fn">sort_values</span>(ascending=<span class="kw">False</span>)</pre>
+
+    <h2>Parsing de auth.log com regex + pandas</h2>
+    <p>
+      Caso real: você recebeu um <code class="inline">auth.log</code> e precisa
+      identificar brute-force SSH. Estratégia: regex extrai os campos, pandas consolida.
+    </p>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> re
+<span class="kw">import</span> pandas <span class="kw">as</span> pd
+
+log = <span class="str">"""Oct 12 09:14:01 srv sshd[1201]: Failed password for root from 45.33.32.156 port 51022 ssh2
+Oct 12 09:14:03 srv sshd[1202]: Failed password for root from 45.33.32.156 port 51024 ssh2
+Oct 12 09:14:05 srv sshd[1203]: Failed password for admin from 45.33.32.156 port 51026 ssh2
+Oct 12 09:15:10 srv sshd[1210]: Accepted password for william from 10.0.0.42 port 60112 ssh2
+Oct 12 09:16:22 srv sshd[1220]: Failed password for invalid user test from 185.220.101.5 port 44012 ssh2
+Oct 12 09:16:24 srv sshd[1221]: Failed password for invalid user oracle from 185.220.101.5 port 44014 ssh2
+Oct 12 09:16:26 srv sshd[1222]: Failed password for invalid user pi from 185.220.101.5 port 44016 ssh2
+Oct 12 09:18:44 srv sshd[1230]: Accepted password for william from 10.0.0.42 port 60120 ssh2"""</span>
+
+padrao = re.<span class="fn">compile</span>(
+    <span class="str">r"(?P&lt;status&gt;Failed|Accepted) password for (?:invalid user )?(?P&lt;user&gt;\S+) from (?P&lt;ip&gt;\S+)"</span>
+)
+
+linhas = []
+<span class="kw">for</span> linha <span class="kw">in</span> log.<span class="fn">splitlines</span>():
+    m = padrao.<span class="fn">search</span>(linha)
+    <span class="kw">if</span> m:
+        linhas.<span class="fn">append</span>(m.<span class="fn">groupdict</span>())
+
+eventos = pd.<span class="fn">DataFrame</span>(linhas)
+eventos.<span class="fn">head</span>()
+
+<span class="comment"># Brute-force: IPs com 3+ falhas</span>
+falhas = eventos[eventos[<span class="str">"status"</span>] == <span class="str">"Failed"</span>]
+suspeitos = falhas.<span class="fn">groupby</span>(<span class="str">"ip"</span>).<span class="fn">size</span>().<span class="fn">reset_index</span>(name=<span class="str">"falhas"</span>)
+suspeitos = suspeitos[suspeitos[<span class="str">"falhas"</span>] &gt;= <span class="num">3</span>]
+suspeitos</pre>
+
+    <div class="tip">
+      <span class="label">DICA DE CAMPO</span>
+      Em produção, esse padrão escala: troque a string <code class="inline">log</code>
+      por <code class="inline">Path("/var/log/auth.log").read_text()</code> — o resto
+      do código não muda.
+    </div>
+
+    <h2>CSV e JSON nativos</h2>
+    <p>
+      No Pyodide, o filesystem é virtual (MEMFS) — tudo vive em RAM. Você escreve e lê
+      arquivos normalmente, mas eles somem ao recarregar a página.
+    </p>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="comment"># Escrever CSV</span>
+suspeitos.<span class="fn">to_csv</span>(<span class="str">"/tmp/suspeitos.csv"</span>, index=<span class="kw">False</span>)
+
+<span class="comment"># Ler CSV de volta</span>
+de_volta = pd.<span class="fn">read_csv</span>(<span class="str">"/tmp/suspeitos.csv"</span>)
+de_volta
+
+<span class="comment"># JSON — útil para APIs (próximo módulo!)</span>
+eventos.<span class="fn">to_json</span>(<span class="str">"/tmp/eventos.json"</span>, orient=<span class="str">"records"</span>, indent=<span class="num">2</span>)
+pd.<span class="fn">read_json</span>(<span class="str">"/tmp/eventos.json"</span>)</pre>
+
+    <h2>Relatório executivo com openpyxl</h2>
+    <p>
+      Gestor não abre CSV — gestor abre XLSX. Pandas usa openpyxl como engine por
+      baixo dos panos.
+    </p>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="comment"># Salvar XLSX</span>
+suspeitos.<span class="fn">to_excel</span>(<span class="str">"/tmp/relatorio.xlsx"</span>, index=<span class="kw">False</span>, sheet_name=<span class="str">"BruteForce"</span>)
+
+<span class="comment"># Ler de volta para validar</span>
+pd.<span class="fn">read_excel</span>(<span class="str">"/tmp/relatorio.xlsx"</span>)
+
+<span class="comment"># Múltiplas abas — relatório completo</span>
+<span class="kw">with</span> pd.<span class="fn">ExcelWriter</span>(<span class="str">"/tmp/soc_report.xlsx"</span>) <span class="kw">as</span> w:
+    eventos.<span class="fn">to_excel</span>(w, sheet_name=<span class="str">"eventos"</span>, index=<span class="kw">False</span>)
+    suspeitos.<span class="fn">to_excel</span>(w, sheet_name=<span class="str">"suspeitos"</span>, index=<span class="kw">False</span>)</pre>
+
+    <div class="warning">
+      <span class="label">⚠ MEMFS É VOLÁTIL</span>
+      Arquivos em <code class="inline">/tmp/</code> ou qualquer caminho do Pyodide
+      vivem só na sessão do browser. Para baixar de verdade, é preciso boilerplate
+      JS (<code class="inline">js.Blob</code> + <code class="inline">URL.createObjectURL</code>).
+      Em ambiente real (Python local), basta salvar no disco.
+    </div>
+
+    <h2>Desafio do módulo</h2>
+    <p>
+      A partir do <code class="inline">auth.log</code> embutido acima, gere um
+      <strong>XLSX com duas abas</strong>: <code class="inline">eventos</code>
+      (parse completo) e <code class="inline">brute_force</code> (apenas IPs com
+      ≥3 falhas, ordenado decrescente). Esse é o tipo de entregável que vai parar
+      no e-mail do CISO.
+    </p>
+  </section>
+
+  <!-- ========== REPL + CHECKLIST ========== -->
+  <section class="right-pane">
+
+    <div class="repl-header">
+      <div class="repl-dots">
+        <span class="dot r"></span>
+        <span class="dot y"></span>
+        <span class="dot g"></span>
+      </div>
+      <span class="repl-title">python — pyodide 3.11 (wasm)</span>
+      <span class="repl-status loading" id="status">CARREGANDO</span>
+    </div>
+
+    <div id="terminal"></div>
+
+        <div class="checklist">
+      <h4>CHECKLIST DO MÓDULO</h4>
+      <p class="desc">Clique em um item para preencher o REPL, ou digite seu próprio código. Detecção automática.</p>
+
+      <div class="check-item" data-check="import-pandas">
+        <span class="check-box"></span>
+        <span class="check-num">1.</span>
+        <span class="check-text"><code>import pandas as pd; pd.__version__</code></span>
+      </div>
+
+      <div class="check-item" data-check="create-df">
+        <span class="check-box"></span>
+        <span class="check-num">2.</span>
+        <span class="check-text"><code>df = pd.DataFrame({"ip":["1.1.1.1","8.8.8.8"],"score":[0,8]}); df</code></span>
+      </div>
+
+      <div class="check-item" data-check="filter-df">
+        <span class="check-box"></span>
+        <span class="check-num">3.</span>
+        <span class="check-text"><code>df[df["score"] > 5]</code></span>
+      </div>
+
+      <div class="check-item" data-check="groupby">
+        <span class="check-box"></span>
+        <span class="check-num">4.</span>
+        <span class="check-text"><code>df.groupby("ip").size()</code></span>
+      </div>
+
+      <div class="check-item" data-check="csv-io">
+        <span class="check-box"></span>
+        <span class="check-num">5.</span>
+        <span class="check-text"><code>df.to_csv("/tmp/d.csv"); pd.read_csv("/tmp/d.csv")</code></span>
+      </div>
+
+      <div class="check-item" data-check="json-io">
+        <span class="check-box"></span>
+        <span class="check-num">6.</span>
+        <span class="check-text"><code>df.to_json("/tmp/d.json", orient="records")</code></span>
+      </div>
+
+      <div class="check-item" data-check="excel-out">
+        <span class="check-box"></span>
+        <span class="check-num">7.</span>
+        <span class="check-text"><code>df.to_excel("/tmp/r.xlsx", index=False)</code></span>
+      </div>
+
+      <div class="actions">
+        <a href="../index.html" class="btn">← módulos</a>
+        <button class="btn" id="btn-reset">reset</button>
+        <button class="btn primary" id="btn-validate" disabled>✓ validar módulo</button>
+      </div>
+
+      <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+    </div>
+
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+
+<script>
+(function () {
+  // estado para csv-io: precisa de to_csv E read_csv ao longo do histórico
+  var csvState = { wrote: false, read: false };
+
+  window.MODULE_CONFIG = {
+    id: 'm2',
+    nextModule: 'm3-apis.html',
+    packages: ['pandas', 'numpy'],          // built-in do Pyodide
+    micropipPackages: ['openpyxl'],         // via PyPI
+    checks: {
+      'import-pandas': function (c) {
+        return c.indexOf('import pandas') !== -1
+            && c.indexOf('__version__') !== -1;
+      },
+      'create-df': function (c) {
+        // exige conteúdo dentro do DataFrame, não só "..."
+        if (!/pd\.DataFrame\s*\(/.test(c) && !/pandas\.DataFrame\s*\(/.test(c)) return false;
+        // precisa ter pelo menos uma string entre aspas (chave do dict)
+        return /["'][a-zA-Z_]+["']\s*:/.test(c);
+      },
+      'filter-df': function (c) {
+        var mask = /\w+\s*\[\s*\w+\s*\[\s*["']/.test(c) && /[<>!=]=?\s*\d/.test(c);
+        var query = /\.query\s*\(\s*["']/.test(c);
+        return mask || query;
+      },
+      'groupby': function (c) {
+        if (!/\.groupby\s*\(\s*["']/.test(c)) return false;
+        return /\.size\s*\(/.test(c)
+            || /\.count\s*\(/.test(c)
+            || /\.agg\s*\(/.test(c)
+            || /\.sum\s*\(/.test(c)
+            || /\.mean\s*\(/.test(c);
+      },
+      'csv-io': function (c) {
+        if (/\.to_csv\s*\(\s*["']/.test(c)) csvState.wrote = true;
+        if (/read_csv\s*\(\s*["']/.test(c)) csvState.read = true;
+        return csvState.wrote && csvState.read;
+      },
+      'json-io': function (c) {
+        return /\.to_json\s*\(\s*["']/.test(c)
+            || /read_json\s*\(\s*["']/.test(c);
+      },
+      'excel-out': function (c) {
+        return /\.to_excel\s*\(\s*["']/.test(c)
+            || /ExcelWriter\s*\(\s*["']/.test(c);
+      }
+    }
+  };
+})();
+</script>
+<script src="../assets/js/pycyber.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M4 · Application Security — py-cyber</title>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+</head>
+<body>
+
+<nav class="topbar">
+  <span class="logo">PY·CYBER</span>
+  <div class="nav-modules">
+    <a href="../index.html">início</a>
+    <a href="m0-setup.html">M0 · Setup</a>
+    <a href="m1-os-files.html">M1 · OS &amp; Files</a>
+    <a href="m2-data.html">M2 · Data</a>
+    <a href="m3-apis.html">M3 · APIs</a>
+    <a href="m4-appsec.html" class="active">M4 · AppSec</a>
+    <a href="m5-forensics.html">M5 · SOC</a>
+    <a href="m6-async.html">M6 · Async</a>
+    <a href="m7-pipelines.html">M7 · Pipelines</a>
+  </div>
+</nav>
+
+<main class="main">
+
+  <section class="theory">
+    <div class="module-tag">MODULE 4</div>
+    <h1>Application <span class="accent">Security</span></h1>
+    <p class="subtitle">SAST, parsing seguro, scraping defensivo e análise de configs (YAML/HTML/XML).</p>
+    <span class="badge">APPSEC</span>
+
+    <h2>O analista AppSec automatiza o quê?</h2>
+    <p>
+      Code review em escala (bandit), parsing de YAML do Kubernetes em busca de
+      misconfig, scraping de páginas internas pra inventário, fuzzing leve de
+      endpoints, análise de XML de relatório do ZAP/Nuclei. Tudo isso é Python +
+      stdlib + 3 bibliotecas chave.
+    </p>
+
+    <div class="grid-2">
+      <div class="info-card">
+        <div class="title">CASOS REAIS</div>
+        <ul>
+          <li>Rodar bandit em pipeline CI</li>
+          <li>Ler manifesto K8s e flagar <code class="inline">privileged: true</code></li>
+          <li>Parsear relatório XML do OWASP ZAP</li>
+          <li>Scraping de portal interno pra inventário</li>
+          <li>Validar configs Ansible/Terraform</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="title">STACK DESTE MÓDULO</div>
+        <ul>
+          <li><code class="inline">bandit</code> — SAST Python</li>
+          <li><code class="inline">PyYAML</code> — YAML parsing</li>
+          <li><code class="inline">beautifulsoup4</code> — HTML scraping</li>
+          <li><code class="inline">lxml</code> / <code class="inline">xml.etree</code> — XML</li>
+          <li><code class="inline">hashlib</code> — integridade</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>YAML — o formato preferido das misconfigs</h2>
+    <p>
+      Use sempre <code class="inline">yaml.safe_load</code>. O <code class="inline">load</code>
+      sem <code class="inline">safe</code> permite executar código Python arbitrário
+      (CVE-2017-18342, e muitas outras).
+    </p>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> yaml
+
+manifest = <span class="str">"""
+apiVersion: v1
+kind: Pod
+metadata:
+  name: webapp
+spec:
+  containers:
+    - name: api
+      image: nginx:latest
+      securityContext:
+        privileged: true
+        runAsUser: 0
+"""</span>
+
+doc = yaml.<span class="fn">safe_load</span>(manifest)
+
+<span class="comment"># Auditoria: containers privilegiados são red flag</span>
+<span class="kw">for</span> c <span class="kw">in</span> doc[<span class="str">"spec"</span>][<span class="str">"containers"</span>]:
+    sc = c.<span class="fn">get</span>(<span class="str">"securityContext"</span>, {})
+    <span class="kw">if</span> sc.<span class="fn">get</span>(<span class="str">"privileged"</span>):
+        <span class="fn">print</span>(<span class="fn">f</span><span class="str">"⚠ {c['name']}: privileged=True"</span>)
+    <span class="kw">if</span> sc.<span class="fn">get</span>(<span class="str">"runAsUser"</span>) == <span class="num">0</span>:
+        <span class="fn">print</span>(<span class="fn">f</span><span class="str">"⚠ {c['name']}: rodando como root"</span>)</pre>
+
+    <div class="warning">
+      <span class="label">⚠ NUNCA USE yaml.load()</span>
+      Sem <code class="inline">Loader=SafeLoader</code> ou <code class="inline">safe_load</code>,
+      um YAML malicioso pode executar código no momento do parsing. Mesmo que o YAML
+      venha de fonte "confiável", trate como input não-confiável.
+    </div>
+
+    <h2>HTML — BeautifulSoup pra scraping defensivo</h2>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">from</span> bs4 <span class="kw">import</span> BeautifulSoup
+
+html = <span class="str">"""
+&lt;html&gt;&lt;body&gt;
+  &lt;h1&gt;Admin Panel&lt;/h1&gt;
+  &lt;a href="/users"&gt;Users&lt;/a&gt;
+  &lt;a href="/config"&gt;Config&lt;/a&gt;
+  &lt;form action="/login" method="POST"&gt;
+    &lt;input name="user"&gt;
+    &lt;input name="pass" type="password"&gt;
+  &lt;/form&gt;
+  &lt;script&gt;var token = "leaked_jwt_xyz"&lt;/script&gt;
+&lt;/body&gt;&lt;/html&gt;
+"""</span>
+
+soup = <span class="fn">BeautifulSoup</span>(html, <span class="str">"html.parser"</span>)
+
+<span class="comment"># Extrair endpoints de uma página</span>
+links = [a[<span class="str">"href"</span>] <span class="kw">for</span> a <span class="kw">in</span> soup.<span class="fn">find_all</span>(<span class="str">"a"</span>, href=<span class="kw">True</span>)]
+
+<span class="comment"># Listar formulários e seus campos</span>
+<span class="kw">for</span> form <span class="kw">in</span> soup.<span class="fn">find_all</span>(<span class="str">"form"</span>):
+    inputs = [i.<span class="fn">get</span>(<span class="str">"name"</span>) <span class="kw">for</span> i <span class="kw">in</span> form.<span class="fn">find_all</span>(<span class="str">"input"</span>)]
+    <span class="fn">print</span>(form[<span class="str">"action"</span>], form[<span class="str">"method"</span>], inputs)
+
+<span class="comment"># Achar segredos vazados em script tags</span>
+<span class="kw">import</span> re
+<span class="kw">for</span> s <span class="kw">in</span> soup.<span class="fn">find_all</span>(<span class="str">"script"</span>):
+    <span class="kw">if</span> s.string <span class="kw">and</span> re.<span class="fn">search</span>(<span class="str">r"token|api[_-]?key|secret"</span>, s.string, re.I):
+        <span class="fn">print</span>(<span class="str">"⚠ possível segredo:"</span>, s.string)</pre>
+
+    <h2>XML — relatórios de scanner</h2>
+    <p>
+      OWASP ZAP, Nuclei, Nessus, Nmap — todos exportam XML. Use
+      <code class="inline">xml.etree</code> da stdlib (sem dependências) ou
+      <code class="inline">lxml</code> (mais rápido, suporta XPath).
+    </p>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> xml.etree.ElementTree <span class="kw">as</span> ET
+
+zap_xml = <span class="str">"""&lt;?xml version="1.0"?&gt;
+&lt;OWASPZAPReport&gt;
+  &lt;site name="https://app.local"&gt;
+    &lt;alerts&gt;
+      &lt;alertitem&gt;
+        &lt;name&gt;SQL Injection&lt;/name&gt;
+        &lt;riskcode&gt;3&lt;/riskcode&gt;
+        &lt;url&gt;https://app.local/search?q=1&lt;/url&gt;
+      &lt;/alertitem&gt;
+      &lt;alertitem&gt;
+        &lt;name&gt;Missing X-Frame-Options&lt;/name&gt;
+        &lt;riskcode&gt;1&lt;/riskcode&gt;
+        &lt;url&gt;https://app.local/&lt;/url&gt;
+      &lt;/alertitem&gt;
+    &lt;/alerts&gt;
+  &lt;/site&gt;
+&lt;/OWASPZAPReport&gt;"""</span>
+
+root = ET.<span class="fn">fromstring</span>(zap_xml)
+
+<span class="comment"># Filtrar só achados de alto risco (riskcode &gt;= 3)</span>
+<span class="kw">for</span> alert <span class="kw">in</span> root.<span class="fn">iter</span>(<span class="str">"alertitem"</span>):
+    risk = <span class="fn">int</span>(alert.<span class="fn">findtext</span>(<span class="str">"riskcode"</span>, <span class="str">"0"</span>))
+    <span class="kw">if</span> risk &gt;= <span class="num">3</span>:
+        <span class="fn">print</span>(alert.<span class="fn">findtext</span>(<span class="str">"name"</span>), <span class="str">"→"</span>, alert.<span class="fn">findtext</span>(<span class="str">"url"</span>))</pre>
+
+    <div class="warning">
+      <span class="label">⚠ XXE — XML EXTERNAL ENTITY</span>
+      <code class="inline">xml.etree</code> da stdlib é seguro por padrão (não resolve
+      entidades externas). Mas se for usar <code class="inline">lxml</code> ou
+      <code class="inline">xml.dom.minidom</code>, configure
+      <code class="inline">resolve_entities=False</code> e
+      <code class="inline">no_network=True</code>. Veja a lib
+      <code class="inline">defusedxml</code> pra parsing 100% seguro.
+    </div>
+
+    <h2>Hashing — integridade de artefato</h2>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> hashlib
+
+<span class="kw">def</span> <span class="fn">file_hash</span>(content: bytes, algo=<span class="str">"sha256"</span>) -&gt; str:
+    h = hashlib.<span class="fn">new</span>(algo)
+    h.<span class="fn">update</span>(content)
+    <span class="kw">return</span> h.<span class="fn">hexdigest</span>()
+
+amostra = <span class="str">b"binary_payload_evidencia"</span>
+<span class="fn">file_hash</span>(amostra, <span class="str">"sha256"</span>)
+<span class="fn">file_hash</span>(amostra, <span class="str">"md5"</span>)
+
+<span class="comment"># Comparar com IOC conhecido (chain of custody)</span>
+ioc_hash = <span class="str">"5d41402abc4b2a76b9719d911017c592"</span>
+<span class="kw">if</span> <span class="fn">file_hash</span>(amostra, <span class="str">"md5"</span>) == ioc_hash:
+    <span class="fn">print</span>(<span class="str">"MATCH com IOC conhecido"</span>)</pre>
+
+    <h2>Bandit — SAST embutido no fluxo</h2>
+    <p>
+      Bandit é o linter de segurança pra Python. Encontra
+      <code class="inline">eval()</code>, <code class="inline">pickle.load</code>,
+      hardcoded passwords, <code class="inline">subprocess</code> com shell=True,
+      uso de MD5 fraco, etc. CLI normal:
+    </p>
+<pre class="code-block"><span class="lang-tag">BASH</span><span class="comment"># Local — não roda no Pyodide, mas é o fluxo padrão</span>
+pip install bandit
+bandit -r ./meu_projeto/
+bandit -f json -o report.json ./meu_projeto/</pre>
+
+    <p>
+      Como Pyodide não tem bandit pré-empacotado, mostramos o que ele detectaria
+      de forma manual — útil pra entender as regras:
+    </p>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> re
+
+codigo_suspeito = <span class="str">'''
+import pickle, hashlib, subprocess
+password = "admin123"
+data = pickle.loads(user_input)
+h = hashlib.md5(b"x")
+subprocess.call(cmd, shell=True)
+eval(expr)
+'''</span>
+
+regras = {
+    <span class="str">"B105_hardcoded_password"</span>: <span class="str">r"password\s*=\s*[\"'][^\"']+[\"']"</span>,
+    <span class="str">"B301_pickle"</span>: <span class="str">r"pickle\.loads?\("</span>,
+    <span class="str">"B303_md5"</span>: <span class="str">r"hashlib\.md5\("</span>,
+    <span class="str">"B602_shell_true"</span>: <span class="str">r"shell\s*=\s*True"</span>,
+    <span class="str">"B307_eval"</span>: <span class="str">r"\beval\s*\("</span>,
+}
+
+<span class="kw">for</span> rule, pat <span class="kw">in</span> regras.<span class="fn">items</span>():
+    <span class="kw">if</span> re.<span class="fn">search</span>(pat, codigo_suspeito):
+        <span class="fn">print</span>(<span class="fn">f</span><span class="str">"⚠ {rule}"</span>)</pre>
+
+    <div class="tip">
+      <span class="label">DICA DE CAMPO</span>
+      Em pipeline CI/CD: rode <code class="inline">bandit -ll</code> (só medium+ high)
+      pra não estourar o pipeline com noise. <code class="inline">--exit-zero</code>
+      no início pra reportar sem quebrar build, depois aperta.
+    </div>
+
+    <h2>Desafio do módulo</h2>
+    <p>
+      Construa <code class="inline">audit_k8s(yaml_str)</code> que: (1) parseia o YAML
+      com <code class="inline">safe_load</code>, (2) percorre todos os containers,
+      (3) retorna lista de findings (dicts com <code class="inline">container</code>,
+      <code class="inline">issue</code>, <code class="inline">severity</code>) cobrindo:
+      <code class="inline">privileged: true</code>, <code class="inline">runAsUser: 0</code>,
+      imagens com tag <code class="inline">:latest</code>, ausência de
+      <code class="inline">resources.limits</code>.
+    </p>
+  </section>
+
+  <section class="right-pane">
+
+    <div class="repl-header">
+      <div class="repl-dots">
+        <span class="dot r"></span>
+        <span class="dot y"></span>
+        <span class="dot g"></span>
+      </div>
+      <span class="repl-title">python — pyodide 3.11 (wasm)</span>
+      <span class="repl-status loading" id="status">CARREGANDO</span>
+    </div>
+
+    <div id="terminal"></div>
+
+    <div class="checklist">
+      <h4>CHECKLIST DO MÓDULO</h4>
+      <p class="desc">Clique para preencher o REPL ou digite. Detecção automática.</p>
+
+      <div class="check-item" data-check="yaml-import">
+        <span class="check-box"></span>
+        <span class="check-num">1.</span>
+        <span class="check-text"><code>import yaml; yaml.__version__</code></span>
+      </div>
+
+      <div class="check-item" data-check="yaml-safe">
+        <span class="check-box"></span>
+        <span class="check-num">2.</span>
+        <span class="check-text"><code>yaml.safe_load("name: api\nimage: nginx")</code></span>
+      </div>
+
+      <div class="check-item" data-check="bs4-parse">
+        <span class="check-box"></span>
+        <span class="check-num">3.</span>
+        <span class="check-text"><code>from bs4 import BeautifulSoup; BeautifulSoup("&lt;a href=/x&gt;y&lt;/a&gt;", "html.parser")</code></span>
+      </div>
+
+      <div class="check-item" data-check="bs4-find">
+        <span class="check-box"></span>
+        <span class="check-num">4.</span>
+        <span class="check-text"><code>soup = BeautifulSoup("&lt;a href=/x&gt;y&lt;/a&gt;", "html.parser"); soup.find_all("a")</code></span>
+      </div>
+
+      <div class="check-item" data-check="xml-parse">
+        <span class="check-box"></span>
+        <span class="check-num">5.</span>
+        <span class="check-text"><code>import xml.etree.ElementTree as ET; ET.fromstring("&lt;r&gt;&lt;a&gt;1&lt;/a&gt;&lt;/r&gt;")</code></span>
+      </div>
+
+      <div class="check-item" data-check="hashing">
+        <span class="check-box"></span>
+        <span class="check-num">6.</span>
+        <span class="check-text"><code>import hashlib; hashlib.sha256(b"test").hexdigest()</code></span>
+      </div>
+
+      <div class="check-item" data-check="sast-regex">
+        <span class="check-box"></span>
+        <span class="check-num">7.</span>
+        <span class="check-text"><code>import re; re.search(r"shell\s*=\s*True", 'subprocess.call(c, shell=True)')</code></span>
+      </div>
+
+      <div class="actions">
+        <a href="../index.html" class="btn">← módulos</a>
+        <button class="btn" id="btn-reset">reset</button>
+        <button class="btn primary" id="btn-validate" disabled>✓ validar módulo</button>
+      </div>
+
+      <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+    </div>
+
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+
+<script>
+(function () {
+  window.MODULE_CONFIG = {
+    id: 'm4',
+    nextModule: 'm5-forensics.html',
+    packages: ['beautifulsoup4', 'lxml', 'pyyaml'],
+    micropipPackages: [],
+    checks: {
+      'yaml-import': function (c) {
+        return /import\s+yaml/.test(c);
+      },
+      'yaml-safe': function (c) {
+        return /yaml\.safe_load\s*\(/.test(c);
+      },
+      'bs4-parse': function (c) {
+        return /from\s+bs4\s+import\s+BeautifulSoup/.test(c)
+            || /BeautifulSoup\s*\(/.test(c);
+      },
+      'bs4-find': function (c) {
+        return /\.find_all\s*\(/.test(c)
+            || /\.find\s*\(\s*["']/.test(c)
+            || /\.select\s*\(\s*["']/.test(c);
+      },
+      'xml-parse': function (c) {
+        return /xml\.etree/.test(c)
+            && (/\.fromstring\s*\(/.test(c) || /\.parse\s*\(/.test(c));
+      },
+      'hashing': function (c) {
+        return /hashlib\.(sha256|sha1|md5|sha512)\s*\(/.test(c)
+            && /\.hexdigest\s*\(/.test(c);
+      },
+      'sast-regex': function (c) {
+        return /import\s+re/.test(c)
+            && (/re\.search\s*\(/.test(c) || /re\.findall\s*\(/.test(c) || /re\.match\s*\(/.test(c));
+      }
+    }
+  };
+})();
+</script>
+<script src="../assets/js/pycyber.js"></script>
+
+</body>
+</html>

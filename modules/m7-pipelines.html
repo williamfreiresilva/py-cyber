@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M7 · Real-World Pipelines — py-cyber</title>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+</head>
+<body>
+
+<nav class="topbar">
+  <span class="logo">PY·CYBER</span>
+  <div class="nav-modules">
+    <a href="../index.html">início</a>
+    <a href="m0-setup.html">M0 · Setup</a>
+    <a href="m1-os-files.html">M1 · OS &amp; Files</a>
+    <a href="m2-data.html">M2 · Data</a>
+    <a href="m3-apis.html">M3 · APIs</a>
+    <a href="m4-appsec.html">M4 · AppSec</a>
+    <a href="m5-forensics.html">M5 · SOC</a>
+    <a href="m6-async.html">M6 · Async</a>
+    <a href="m7-pipelines.html" class="active">M7 · Pipelines</a>
+  </div>
+</nav>
+
+<main class="main">
+
+  <section class="theory">
+    <div class="module-tag">MODULE 7</div>
+    <h1>Real-World <span class="accent">Pipelines</span></h1>
+    <p class="subtitle">Combinando tudo: ingestão → enrichment → triagem → relatório. Capstone do curso.</p>
+    <span class="badge">CAPSTONE</span>
+
+    <h2>O que é um pipeline de SOC?</h2>
+    <p>
+      Pipeline é a cola que liga as peças que você aprendeu nos módulos anteriores
+      em um fluxo de produção: <strong>entra</strong> log/alerta bruto,
+      <strong>sai</strong> decisão acionável (bloqueio, ticket, e-mail).
+    </p>
+
+    <pre class="code-block"><span class="lang-tag">FLOW</span>┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
+│ INGESTÃO │ → │  PARSE   │ → │ ENRICH   │ → │  TRIAGE  │ → │  OUTPUT  │
+│ log/CSV  │   │ regex/df │   │ VT/geo   │   │ score/IA │   │ XLSX/API │
+└──────────┘   └──────────┘   └──────────┘   └──────────┘   └──────────┘
+   M1/M2          M2/M5          M3/M6           M2            M2/M3</pre>
+
+    <div class="grid-2">
+      <div class="info-card">
+        <div class="title">PRINCÍPIOS</div>
+        <ul>
+          <li>Cada etapa é função pura testável</li>
+          <li>Falha em uma fonte ≠ pipeline parado</li>
+          <li>Logs estruturados (JSON, não print)</li>
+          <li>Idempotente — rerun não duplica</li>
+          <li>Config separada do código</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="title">3 PIPELINES DESTE MÓDULO</div>
+        <ul>
+          <li><strong>IOC enrichment</strong> em batch</li>
+          <li><strong>Alert triage</strong> com scoring</li>
+          <li><strong>Forensic collector</strong> com custódia</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>Pipeline 1 — IOC Enrichment</h2>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> asyncio, json
+<span class="kw">from</span> pyodide.http <span class="kw">import</span> pyfetch
+<span class="kw">from</span> pydantic <span class="kw">import</span> BaseModel
+<span class="kw">import</span> pandas <span class="kw">as</span> pd
+
+<span class="kw">class</span> <span class="fn">IOC</span>(BaseModel):
+    ip: str
+    country: str = <span class="str">""</span>
+    org: str = <span class="str">""</span>
+    risk: int = <span class="num">0</span>
+
+<span class="kw">async</span> <span class="kw">def</span> <span class="fn">enrich_one</span>(ip: str, sem):
+    <span class="kw">async</span> <span class="kw">with</span> sem:
+        <span class="kw">try</span>:
+            r = <span class="kw">await</span> asyncio.<span class="fn">wait_for</span>(
+                <span class="fn">pyfetch</span>(<span class="fn">f</span><span class="str">"https://ipapi.co/{ip}/json/"</span>),
+                timeout=<span class="num">5.0</span>
+            )
+            j = <span class="kw">await</span> r.<span class="fn">json</span>()
+            risk = <span class="num">10</span> <span class="kw">if</span> <span class="str">"Tor"</span> <span class="kw">in</span> j.<span class="fn">get</span>(<span class="str">"org"</span>, <span class="str">""</span>) <span class="kw">else</span> <span class="num">0</span>
+            <span class="kw">return</span> <span class="fn">IOC</span>(ip=ip, country=j.<span class="fn">get</span>(<span class="str">"country_name"</span>, <span class="str">""</span>),
+                       org=j.<span class="fn">get</span>(<span class="str">"org"</span>, <span class="str">""</span>), risk=risk)
+        <span class="kw">except</span> Exception:
+            <span class="kw">return</span> <span class="fn">IOC</span>(ip=ip)
+
+<span class="kw">async</span> <span class="kw">def</span> <span class="fn">enrich_batch</span>(ips, concurrency=<span class="num">5</span>):
+    sem = asyncio.<span class="fn">Semaphore</span>(concurrency)
+    results = <span class="kw">await</span> asyncio.<span class="fn">gather</span>(*[<span class="fn">enrich_one</span>(i, sem) <span class="kw">for</span> i <span class="kw">in</span> ips])
+    <span class="kw">return</span> pd.<span class="fn">DataFrame</span>([r.<span class="fn">model_dump</span>() <span class="kw">for</span> r <span class="kw">in</span> results])
+
+ips = [<span class="str">"8.8.8.8"</span>, <span class="str">"1.1.1.1"</span>, <span class="str">"45.33.32.156"</span>]
+df = <span class="kw">await</span> <span class="fn">enrich_batch</span>(ips)
+df</pre>
+
+    <h2>Pipeline 2 — Alert Triage com scoring</h2>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">import</span> re
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime, timezone
+
+<span class="comment"># Alertas crus do SIEM</span>
+alerts = [
+    {<span class="str">"id"</span>: <span class="str">"A1"</span>, <span class="str">"src_ip"</span>: <span class="str">"45.33.32.156"</span>, <span class="str">"sig"</span>: <span class="str">"SSH brute force"</span>, <span class="str">"count"</span>: <span class="num">120</span>},
+    {<span class="str">"id"</span>: <span class="str">"A2"</span>, <span class="str">"src_ip"</span>: <span class="str">"10.0.0.5"</span>,     <span class="str">"sig"</span>: <span class="str">"Failed login"</span>,    <span class="str">"count"</span>: <span class="num">3</span>},
+    {<span class="str">"id"</span>: <span class="str">"A3"</span>, <span class="str">"src_ip"</span>: <span class="str">"185.220.101.5"</span>,<span class="str">"sig"</span>: <span class="str">"C2 beacon"</span>,       <span class="str">"count"</span>: <span class="num">5</span>},
+    {<span class="str">"id"</span>: <span class="str">"A4"</span>, <span class="str">"src_ip"</span>: <span class="str">"192.168.1.7"</span>,  <span class="str">"sig"</span>: <span class="str">"Port scan"</span>,       <span class="str">"count"</span>: <span class="num">800</span>},
+]
+
+<span class="kw">def</span> <span class="fn">score</span>(a: dict) -&gt; int:
+    s = <span class="num">0</span>
+    <span class="kw">if</span> <span class="str">"C2"</span> <span class="kw">in</span> a[<span class="str">"sig"</span>]: s += <span class="num">50</span>
+    <span class="kw">if</span> <span class="str">"brute"</span> <span class="kw">in</span> a[<span class="str">"sig"</span>].<span class="fn">lower</span>(): s += <span class="num">30</span>
+    <span class="kw">if</span> a[<span class="str">"count"</span>] &gt; <span class="num">100</span>: s += <span class="num">20</span>
+    <span class="kw">if</span> a[<span class="str">"src_ip"</span>].<span class="fn">startswith</span>((<span class="str">"10."</span>, <span class="str">"192.168."</span>)): s -= <span class="num">10</span>
+    <span class="kw">return</span> <span class="fn">max</span>(<span class="num">0</span>, s)
+
+<span class="kw">def</span> <span class="fn">priority</span>(s: int) -&gt; str:
+    <span class="kw">if</span> s &gt;= <span class="num">50</span>: <span class="kw">return</span> <span class="str">"P1"</span>
+    <span class="kw">if</span> s &gt;= <span class="num">25</span>: <span class="kw">return</span> <span class="str">"P2"</span>
+    <span class="kw">return</span> <span class="str">"P3"</span>
+
+df = pd.<span class="fn">DataFrame</span>(alerts)
+df[<span class="str">"score"</span>] = df.<span class="fn">apply</span>(score, axis=<span class="num">1</span>)
+df[<span class="str">"priority"</span>] = df[<span class="str">"score"</span>].<span class="fn">apply</span>(priority)
+df = df.<span class="fn">sort_values</span>(<span class="str">"score"</span>, ascending=<span class="kw">False</span>)
+df</pre>
+
+    <h2>Pipeline 3 — Forensic Collector</h2>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> hashlib, json
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime, timezone
+<span class="kw">from</span> cryptography.fernet <span class="kw">import</span> Fernet
+
+<span class="kw">def</span> <span class="fn">collect_evidence</span>(label: str, content: bytes, key: bytes):
+    <span class="comment"># 1. cadeia de custódia</span>
+    custody = {
+        <span class="str">"label"</span>: label,
+        <span class="str">"size"</span>: <span class="fn">len</span>(content),
+        <span class="str">"sha256"</span>: hashlib.<span class="fn">sha256</span>(content).<span class="fn">hexdigest</span>(),
+        <span class="str">"collected_at"</span>: datetime.<span class="fn">now</span>(timezone.utc).<span class="fn">isoformat</span>(),
+    }
+
+    <span class="comment"># 2. cifrar conteúdo</span>
+    cipher = <span class="fn">Fernet</span>(key)
+    encrypted = cipher.<span class="fn">encrypt</span>(content)
+
+    <span class="comment"># 3. assinar metadados</span>
+    custody[<span class="str">"encrypted_size"</span>] = <span class="fn">len</span>(encrypted)
+    custody[<span class="str">"signature"</span>] = hashlib.<span class="fn">sha256</span>(encrypted).<span class="fn">hexdigest</span>()
+
+    <span class="kw">return</span> {<span class="str">"custody"</span>: custody, <span class="str">"payload"</span>: encrypted}
+
+key = Fernet.<span class="fn">generate_key</span>()
+ev = <span class="fn">collect_evidence</span>(<span class="str">"memdump_srv01"</span>, <span class="str">b"<binary memory snapshot>"</span>, key)
+<span class="fn">print</span>(json.<span class="fn">dumps</span>(ev[<span class="str">"custody"</span>], indent=<span class="num">2</span>))</pre>
+
+    <h2>Logging estruturado</h2>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> logging, json, sys
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime, timezone
+
+<span class="kw">class</span> <span class="fn">JSONFormatter</span>(logging.Formatter):
+    <span class="kw">def</span> <span class="fn">format</span>(self, record):
+        <span class="kw">return</span> json.<span class="fn">dumps</span>({
+            <span class="str">"ts"</span>: datetime.<span class="fn">now</span>(timezone.utc).<span class="fn">isoformat</span>(),
+            <span class="str">"level"</span>: record.levelname,
+            <span class="str">"msg"</span>: record.<span class="fn">getMessage</span>(),
+            <span class="str">"module"</span>: record.module,
+        })
+
+logger = logging.<span class="fn">getLogger</span>(<span class="str">"pipeline"</span>)
+logger.<span class="fn">setLevel</span>(logging.INFO)
+h = logging.<span class="fn">StreamHandler</span>(sys.stdout)
+h.<span class="fn">setFormatter</span>(<span class="fn">JSONFormatter</span>())
+logger.<span class="fn">addHandler</span>(h)
+
+logger.<span class="fn">info</span>(<span class="str">"pipeline started"</span>)
+logger.<span class="fn">warning</span>(<span class="str">"rate limit hit, retrying"</span>)
+logger.<span class="fn">error</span>(<span class="str">"VT API timeout"</span>)</pre>
+
+    <div class="tip">
+      <span class="label">DICA DE CAMPO</span>
+      Logs estruturados em JSON são parseáveis pelo SIEM da sua própria empresa —
+      é meta, mas é assim que pipelines maduros funcionam. Splunk, Elastic e
+      Datadog tratam JSON nativamente.
+    </div>
+
+    <h2>Config externa — nunca hardcode</h2>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> json, os
+
+<span class="comment"># Em produção: variáveis de ambiente + arquivo de config</span>
+config = {
+    <span class="str">"vt_api_key"</span>: os.<span class="fn">getenv</span>(<span class="str">"VT_API_KEY"</span>, <span class="str">""</span>),
+    <span class="str">"concurrency"</span>: <span class="fn">int</span>(os.<span class="fn">getenv</span>(<span class="str">"CONCURRENCY"</span>, <span class="str">"10"</span>)),
+    <span class="str">"timeout_s"</span>: <span class="fn">float</span>(os.<span class="fn">getenv</span>(<span class="str">"TIMEOUT_S"</span>, <span class="str">"5.0"</span>)),
+    <span class="str">"output_dir"</span>: os.<span class="fn">getenv</span>(<span class="str">"OUTPUT_DIR"</span>, <span class="str">"/tmp/reports"</span>),
+}
+
+<span class="fn">print</span>(json.<span class="fn">dumps</span>(config, indent=<span class="num">2</span>))</pre>
+
+    <div class="warning">
+      <span class="label">⚠ NUNCA</span>
+      Comitar API key, password ou cert no Git. Use vault (HashiCorp, AWS Secrets
+      Manager, Azure Key Vault) ou no mínimo <code class="inline">.env</code> no
+      <code class="inline">.gitignore</code>. Ferramentas como
+      <code class="inline">trufflehog</code> e <code class="inline">gitleaks</code>
+      varrem repos atrás de leak.
+    </div>
+
+    <h2>Testes — sim, em script de SOC também</h2>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="comment"># Use pytest em produção. Aqui mostro o conceito com assert.</span>
+
+<span class="kw">def</span> <span class="fn">is_private_ip</span>(ip: str) -&gt; bool:
+    <span class="kw">return</span> ip.<span class="fn">startswith</span>((<span class="str">"10."</span>, <span class="str">"192.168."</span>, <span class="str">"172.16."</span>))
+
+<span class="kw">assert</span> <span class="fn">is_private_ip</span>(<span class="str">"10.0.0.1"</span>) <span class="kw">is</span> <span class="kw">True</span>
+<span class="kw">assert</span> <span class="fn">is_private_ip</span>(<span class="str">"8.8.8.8"</span>) <span class="kw">is</span> <span class="kw">False</span>
+<span class="kw">assert</span> <span class="fn">is_private_ip</span>(<span class="str">"192.168.1.1"</span>) <span class="kw">is</span> <span class="kw">True</span>
+
+<span class="fn">print</span>(<span class="str">"✓ todos os testes passaram"</span>)</pre>
+
+    <h2>Capstone — pipeline completo end-to-end</h2>
+    <p>
+      Combine os 3 pipelines em um só fluxo: receba lista de alertas (com
+      <code class="inline">src_ip</code>), enriqueça os IPs com geo, calcule
+      score, gere XLSX com 2 abas (<code class="inline">all_alerts</code>,
+      <code class="inline">p1_only</code>), e logue cada etapa em JSON.
+      Esse é o entregável final — o que diferencia analista júnior de pleno.
+    </p>
+
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">async</span> <span class="kw">def</span> <span class="fn">soc_pipeline</span>(alerts: list, key: bytes):
+    logger.<span class="fn">info</span>(<span class="fn">f</span><span class="str">"started: {len(alerts)} alerts"</span>)
+
+    <span class="comment"># 1. enrich</span>
+    ips = [a[<span class="str">"src_ip"</span>] <span class="kw">for</span> a <span class="kw">in</span> alerts]
+    enriched = <span class="kw">await</span> <span class="fn">enrich_batch</span>(ips, concurrency=<span class="num">5</span>)
+    logger.<span class="fn">info</span>(<span class="str">"enrichment done"</span>)
+
+    <span class="comment"># 2. score + priority</span>
+    df = pd.<span class="fn">DataFrame</span>(alerts)
+    df = df.<span class="fn">merge</span>(enriched, left_on=<span class="str">"src_ip"</span>, right_on=<span class="str">"ip"</span>, how=<span class="str">"left"</span>)
+    df[<span class="str">"score"</span>] = df.<span class="fn">apply</span>(score, axis=<span class="num">1</span>)
+    df[<span class="str">"priority"</span>] = df[<span class="str">"score"</span>].<span class="fn">apply</span>(priority)
+
+    <span class="comment"># 3. output</span>
+    <span class="kw">with</span> pd.<span class="fn">ExcelWriter</span>(<span class="str">"/tmp/soc_report.xlsx"</span>) <span class="kw">as</span> w:
+        df.<span class="fn">to_excel</span>(w, sheet_name=<span class="str">"all_alerts"</span>, index=<span class="kw">False</span>)
+        df[df[<span class="str">"priority"</span>] == <span class="str">"P1"</span>].<span class="fn">to_excel</span>(w, sheet_name=<span class="str">"p1_only"</span>, index=<span class="kw">False</span>)
+    logger.<span class="fn">info</span>(<span class="str">"report saved"</span>)
+    <span class="kw">return</span> df
+
+result = <span class="kw">await</span> <span class="fn">soc_pipeline</span>(alerts, key)
+result</pre>
+  </section>
+
+  <section class="right-pane">
+
+    <div class="repl-header">
+      <div class="repl-dots">
+        <span class="dot r"></span>
+        <span class="dot y"></span>
+        <span class="dot g"></span>
+      </div>
+      <span class="repl-title">python — pyodide 3.11 (wasm)</span>
+      <span class="repl-status loading" id="status">CARREGANDO</span>
+    </div>
+
+    <div id="terminal"></div>
+
+    <div class="checklist">
+      <h4>CHECKLIST DO MÓDULO</h4>
+      <p class="desc">Clique para preencher o REPL ou digite. Detecção automática.</p>
+
+      <div class="check-item" data-check="pipeline-stack">
+        <span class="check-box"></span>
+        <span class="check-num">1.</span>
+        <span class="check-text"><code>import asyncio, pandas as pd, hashlib, json; "stack ready"</code></span>
+      </div>
+
+      <div class="check-item" data-check="define-stage">
+        <span class="check-box"></span>
+        <span class="check-num">2.</span>
+        <span class="check-text"><code>def parse_stage(raw): return [r.strip() for r in raw.split(",")]</code></span>
+      </div>
+
+      <div class="check-item" data-check="score-fn">
+        <span class="check-box"></span>
+        <span class="check-num">3.</span>
+        <span class="check-text"><code>def score(a): return 50 if "C2" in a.get("sig","") else 10</code></span>
+      </div>
+
+      <div class="check-item" data-check="apply-df">
+        <span class="check-box"></span>
+        <span class="check-num">4.</span>
+        <span class="check-text"><code>df = pd.DataFrame([{"sig":"C2 beacon"},{"sig":"login"}]); df["s"] = df.apply(score, axis=1); df</code></span>
+      </div>
+
+      <div class="check-item" data-check="json-log">
+        <span class="check-box"></span>
+        <span class="check-num">5.</span>
+        <span class="check-text"><code>import json; print(json.dumps({"level":"INFO","msg":"pipeline started"}))</code></span>
+      </div>
+
+      <div class="check-item" data-check="config-env">
+        <span class="check-box"></span>
+        <span class="check-num">6.</span>
+        <span class="check-text"><code>import os; cfg = {"concurrency": int(os.getenv("CONCURRENCY","10"))}; cfg</code></span>
+      </div>
+
+      <div class="check-item" data-check="assert-test">
+        <span class="check-box"></span>
+        <span class="check-num">7.</span>
+        <span class="check-text"><code>def is_priv(ip): return ip.startswith(("10.","192.168.")); assert is_priv("10.0.0.1"); "ok"</code></span>
+      </div>
+
+      <div class="actions">
+        <a href="../index.html" class="btn">← módulos</a>
+        <button class="btn" id="btn-reset">reset</button>
+        <button class="btn primary" id="btn-validate" disabled>✓ validar módulo</button>
+      </div>
+
+      <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+    </div>
+
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+
+<script>
+(function () {
+  window.MODULE_CONFIG = {
+    id: 'm7',
+    nextModule: 'm8-career.html',
+    packages: ['pandas'],
+    micropipPackages: [],
+    checks: {
+      'pipeline-stack': function (c) {
+        return /import\s+asyncio/.test(c)
+            && /pandas/.test(c)
+            && /hashlib/.test(c);
+      },
+      'define-stage': function (c) {
+        return /def\s+\w+\s*\(/.test(c)
+            && /return\s+/.test(c);
+      },
+      'score-fn': function (c) {
+        return /def\s+score\s*\(/.test(c)
+            || (/def\s+\w+\s*\(/.test(c) && /\bif\b.*\belse\b/.test(c));
+      },
+      'apply-df': function (c) {
+        return /\.apply\s*\(/.test(c)
+            && /axis\s*=\s*1/.test(c);
+      },
+      'json-log': function (c) {
+        return /json\.dumps\s*\(/.test(c)
+            && /(level|msg|ts)/i.test(c);
+      },
+      'config-env': function (c) {
+        return /os\.getenv\s*\(/.test(c);
+      },
+      'assert-test': function (c) {
+        return /\bassert\b/.test(c);
+      }
+    }
+  };
+})();
+</script>
+<script src="../assets/js/pycyber.js"></script>
+
+</body>
+</html>

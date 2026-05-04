@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M6 · Async Programming — py-cyber</title>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+</head>
+<body>
+
+<nav class="topbar">
+  <span class="logo">PY·CYBER</span>
+  <div class="nav-modules">
+    <a href="../index.html">início</a>
+    <a href="m0-setup.html">M0 · Setup</a>
+    <a href="m1-os-files.html">M1 · OS &amp; Files</a>
+    <a href="m2-data.html">M2 · Data</a>
+    <a href="m3-apis.html">M3 · APIs</a>
+    <a href="m4-appsec.html">M4 · AppSec</a>
+    <a href="m5-forensics.html">M5 · SOC</a>
+    <a href="m6-async.html" class="active">M6 · Async</a>
+    <a href="m7-pipelines.html">M7 · Pipelines</a>
+  </div>
+</nav>
+
+<main class="main">
+
+  <section class="theory">
+    <div class="module-tag">MODULE 6</div>
+    <h1>Async <span class="accent">Programming</span></h1>
+    <p class="subtitle">asyncio, paralelismo real para enrichment em escala — 1 IOC vs 10.000 IOCs.</p>
+    <span class="badge">CONCURRENCY</span>
+
+    <h2>Por que async importa em segurança</h2>
+    <p>
+      Você tem 5.000 IPs pra consultar no VirusTotal. Sequencial: 5.000 × 200ms =
+      <strong>16 minutos</strong>. Concorrente com 50 conexões em paralelo:
+      <strong>20 segundos</strong>. A diferença entre triagem em tempo real e
+      planilha de ontem.
+    </p>
+
+    <div class="grid-2">
+      <div class="info-card">
+        <div class="title">QUANDO USAR ASYNC</div>
+        <ul>
+          <li>Enrichment em massa (VT, AbuseIPDB)</li>
+          <li>Varredura de portas/HTTP</li>
+          <li>Pull paralelo de múltiplos SIEMs</li>
+          <li>Coleta de evidência em N hosts</li>
+          <li>Qualquer I/O bound em escala</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="title">QUANDO NÃO USAR</div>
+        <ul>
+          <li>CPU bound (use multiprocessing)</li>
+          <li>Hashing pesado de arquivo único</li>
+          <li>Script de 3 chamadas</li>
+          <li>Código que ninguém vai manter</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>async/await — a sintaxe básica</h2>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> asyncio
+
+<span class="kw">async</span> <span class="kw">def</span> <span class="fn">consulta_lenta</span>(ioc: str):
+    <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(<span class="num">1</span>)  <span class="comment"># simula chamada de API</span>
+    <span class="kw">return</span> {<span class="str">"ioc"</span>: ioc, <span class="str">"verdict"</span>: <span class="str">"clean"</span>}
+
+<span class="comment"># No Pyodide o REPL já roda dentro de loop — basta await direto</span>
+<span class="kw">await</span> <span class="fn">consulta_lenta</span>(<span class="str">"1.1.1.1"</span>)</pre>
+
+    <div class="warning">
+      <span class="label">⚠ NO REPL DESTE BROWSER</span>
+      Use <code class="inline">await</code> direto na linha (top-level await funciona
+      no Pyodide). Em script <code class="inline">.py</code> local, envolva com
+      <code class="inline">asyncio.run(main())</code>.
+    </div>
+
+    <h2>gather — N tarefas em paralelo</h2>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> asyncio, time
+
+<span class="kw">async</span> <span class="kw">def</span> <span class="fn">check_ioc</span>(ip: str, delay: float):
+    <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(delay)
+    <span class="kw">return</span> <span class="fn">f</span><span class="str">"{ip}=ok"</span>
+
+<span class="comment"># Sequencial — soma dos delays</span>
+t0 = time.<span class="fn">time</span>()
+<span class="kw">for</span> ip <span class="kw">in</span> [<span class="str">"1.1.1.1"</span>, <span class="str">"2.2.2.2"</span>, <span class="str">"3.3.3.3"</span>]:
+    <span class="kw">await</span> <span class="fn">check_ioc</span>(ip, <span class="num">0.5</span>)
+<span class="fn">print</span>(<span class="fn">f</span><span class="str">"sequencial: {time.time()-t0:.2f}s"</span>)
+
+<span class="comment"># Paralelo — ~ max dos delays</span>
+t0 = time.<span class="fn">time</span>()
+results = <span class="kw">await</span> asyncio.<span class="fn">gather</span>(
+    <span class="fn">check_ioc</span>(<span class="str">"1.1.1.1"</span>, <span class="num">0.5</span>),
+    <span class="fn">check_ioc</span>(<span class="str">"2.2.2.2"</span>, <span class="num">0.5</span>),
+    <span class="fn">check_ioc</span>(<span class="str">"3.3.3.3"</span>, <span class="num">0.5</span>),
+)
+<span class="fn">print</span>(<span class="fn">f</span><span class="str">"paralelo: {time.time()-t0:.2f}s"</span>, results)</pre>
+
+    <h2>Semaphore — limitando concorrência</h2>
+    <p>
+      Disparar 5.000 requests ao mesmo tempo derruba você por rate limit ou pelo
+      ulimit do SO. <code class="inline">Semaphore</code> trava o número máximo
+      de tarefas executando simultaneamente.
+    </p>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> asyncio
+
+<span class="kw">async</span> <span class="kw">def</span> <span class="fn">enrich</span>(ioc: str, sem: asyncio.Semaphore):
+    <span class="kw">async</span> <span class="kw">with</span> sem:
+        <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(<span class="num">0.2</span>)
+        <span class="kw">return</span> <span class="fn">f</span><span class="str">"{ioc}:done"</span>
+
+iocs = [<span class="fn">f</span><span class="str">"10.0.0.{i}"</span> <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="num">20</span>)]
+sem = asyncio.<span class="fn">Semaphore</span>(<span class="num">5</span>)  <span class="comment"># máx 5 simultâneos</span>
+
+results = <span class="kw">await</span> asyncio.<span class="fn">gather</span>(*[<span class="fn">enrich</span>(i, sem) <span class="kw">for</span> i <span class="kw">in</span> iocs])
+<span class="fn">len</span>(results), results[:<span class="num">3</span>]</pre>
+
+    <h2>HTTP async com pyfetch</h2>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> asyncio
+<span class="kw">from</span> pyodide.http <span class="kw">import</span> pyfetch
+
+<span class="kw">async</span> <span class="kw">def</span> <span class="fn">fetch_status</span>(url: str):
+    <span class="kw">try</span>:
+        r = <span class="kw">await</span> <span class="fn">pyfetch</span>(url)
+        <span class="kw">return</span> (url, r.status)
+    <span class="kw">except</span> Exception <span class="kw">as</span> e:
+        <span class="kw">return</span> (url, <span class="fn">f</span><span class="str">"err:{e}"</span>)
+
+urls = [
+    <span class="str">"https://httpbin.org/status/200"</span>,
+    <span class="str">"https://httpbin.org/status/404"</span>,
+    <span class="str">"https://httpbin.org/status/500"</span>,
+    <span class="str">"https://httpbin.org/delay/1"</span>,
+]
+
+results = <span class="kw">await</span> asyncio.<span class="fn">gather</span>(*[<span class="fn">fetch_status</span>(u) <span class="kw">for</span> u <span class="kw">in</span> urls])
+<span class="kw">for</span> r <span class="kw">in</span> results: <span class="fn">print</span>(r)</pre>
+
+    <h2>Timeout — não trave forever</h2>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> asyncio
+
+<span class="kw">async</span> <span class="kw">def</span> <span class="fn">slow</span>():
+    <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(<span class="num">10</span>)
+    <span class="kw">return</span> <span class="str">"never"</span>
+
+<span class="kw">try</span>:
+    result = <span class="kw">await</span> asyncio.<span class="fn">wait_for</span>(<span class="fn">slow</span>(), timeout=<span class="num">1.0</span>)
+<span class="kw">except</span> asyncio.TimeoutError:
+    <span class="fn">print</span>(<span class="str">"⚠ desistiu após 1s"</span>)</pre>
+
+    <h2>Padrão real: enrichment em batch com Semaphore + Timeout</h2>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> asyncio
+<span class="kw">from</span> pyodide.http <span class="kw">import</span> pyfetch
+
+<span class="kw">async</span> <span class="kw">def</span> <span class="fn">lookup</span>(ip: str, sem: asyncio.Semaphore):
+    <span class="kw">async</span> <span class="kw">with</span> sem:
+        <span class="kw">try</span>:
+            r = <span class="kw">await</span> asyncio.<span class="fn">wait_for</span>(
+                <span class="fn">pyfetch</span>(<span class="fn">f</span><span class="str">"https://httpbin.org/anything/{ip}"</span>),
+                timeout=<span class="num">5.0</span>
+            )
+            j = <span class="kw">await</span> r.<span class="fn">json</span>()
+            <span class="kw">return</span> {<span class="str">"ip"</span>: ip, <span class="str">"ok"</span>: <span class="kw">True</span>, <span class="str">"echo"</span>: j[<span class="str">"url"</span>]}
+        <span class="kw">except</span> Exception <span class="kw">as</span> e:
+            <span class="kw">return</span> {<span class="str">"ip"</span>: ip, <span class="str">"ok"</span>: <span class="kw">False</span>, <span class="str">"err"</span>: <span class="fn">str</span>(e)}
+
+<span class="kw">async</span> <span class="kw">def</span> <span class="fn">batch_enrich</span>(ips, concurrency=<span class="num">10</span>):
+    sem = asyncio.<span class="fn">Semaphore</span>(concurrency)
+    <span class="kw">return</span> <span class="kw">await</span> asyncio.<span class="fn">gather</span>(*[<span class="fn">lookup</span>(ip, sem) <span class="kw">for</span> ip <span class="kw">in</span> ips])
+
+ips = [<span class="fn">f</span><span class="str">"8.8.8.{i}"</span> <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="num">5</span>)]
+results = <span class="kw">await</span> <span class="fn">batch_enrich</span>(ips, concurrency=<span class="num">3</span>)
+results</pre>
+
+    <div class="tip">
+      <span class="label">DICA DE CAMPO</span>
+      Concurrency entre 10 e 50 cobre 95% dos casos. Acima disso esbarra em
+      rate limit do provedor ou file descriptors do SO. Sempre comece em 10,
+      meça, e suba só se precisar.
+    </div>
+
+    <h2>aiohttp em Python local (fora do browser)</h2>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="comment"># Em Python local — não roda no Pyodide</span>
+<span class="kw">import</span> aiohttp, asyncio
+
+<span class="kw">async</span> <span class="kw">def</span> <span class="fn">fetch</span>(session, url):
+    <span class="kw">async</span> <span class="kw">with</span> session.<span class="fn">get</span>(url) <span class="kw">as</span> r:
+        <span class="kw">return</span> <span class="kw">await</span> r.<span class="fn">text</span>()
+
+<span class="kw">async</span> <span class="kw">def</span> <span class="fn">main</span>():
+    <span class="kw">async</span> <span class="kw">with</span> aiohttp.<span class="fn">ClientSession</span>() <span class="kw">as</span> session:
+        urls = [<span class="str">"https://example.com"</span>] * <span class="num">10</span>
+        <span class="kw">return</span> <span class="kw">await</span> asyncio.<span class="fn">gather</span>(*[<span class="fn">fetch</span>(session, u) <span class="kw">for</span> u <span class="kw">in</span> urls])
+
+<span class="comment"># asyncio.run(main())</span></pre>
+
+    <h2>Erros comuns que vão te morder</h2>
+    <ul>
+      <li><strong>Esquecer <code class="inline">await</code></strong> — vira coroutine não-executada, warning silencioso</li>
+      <li><strong>Misturar <code class="inline">requests</code> síncrono em código async</strong> — bloqueia o loop, perde todo o benefício</li>
+      <li><strong>Não tratar exceção</strong> em <code class="inline">gather</code> — uma falha aborta tudo (use <code class="inline">return_exceptions=True</code>)</li>
+      <li><strong>Concurrency = ∞</strong> — derruba você ou o servidor</li>
+    </ul>
+
+    <h2>Desafio do módulo</h2>
+    <p>
+      Construa <code class="inline">scan_ports(host, ports, concurrency=20)</code> que:
+      (1) recebe lista de portas, (2) tenta GET em
+      <code class="inline">http://host:port/</code> com timeout de 2s,
+      (3) usa <code class="inline">Semaphore</code> pra limitar concorrência,
+      (4) retorna dict <code class="inline">{port: status_code or "closed"}</code>.
+      Use <code class="inline">return_exceptions=True</code> pra não abortar.
+    </p>
+  </section>
+
+  <section class="right-pane">
+
+    <div class="repl-header">
+      <div class="repl-dots">
+        <span class="dot r"></span>
+        <span class="dot y"></span>
+        <span class="dot g"></span>
+      </div>
+      <span class="repl-title">python — pyodide 3.11 (wasm)</span>
+      <span class="repl-status loading" id="status">CARREGANDO</span>
+    </div>
+
+    <div id="terminal"></div>
+
+    <div class="checklist">
+      <h4>CHECKLIST DO MÓDULO</h4>
+      <p class="desc">Clique para preencher o REPL ou digite. Detecção automática.</p>
+
+      <div class="check-item" data-check="import-asyncio">
+        <span class="check-box"></span>
+        <span class="check-num">1.</span>
+        <span class="check-text"><code>import asyncio; asyncio.__name__</code></span>
+      </div>
+
+      <div class="check-item" data-check="async-sleep">
+        <span class="check-box"></span>
+        <span class="check-num">2.</span>
+        <span class="check-text"><code>await asyncio.sleep(0.1); "ok"</code></span>
+      </div>
+
+      <div class="check-item" data-check="async-def">
+        <span class="check-box"></span>
+        <span class="check-num">3.</span>
+        <span class="check-text"><code>async def f(x): await asyncio.sleep(0.1); return x*2</code></span>
+      </div>
+
+      <div class="check-item" data-check="gather">
+        <span class="check-box"></span>
+        <span class="check-num">4.</span>
+        <span class="check-text"><code>await asyncio.gather(f(1), f(2), f(3))</code></span>
+      </div>
+
+      <div class="check-item" data-check="semaphore">
+        <span class="check-box"></span>
+        <span class="check-num">5.</span>
+        <span class="check-text"><code>sem = asyncio.Semaphore(5); sem</code></span>
+      </div>
+
+      <div class="check-item" data-check="wait-for">
+        <span class="check-box"></span>
+        <span class="check-num">6.</span>
+        <span class="check-text"><code>await asyncio.wait_for(asyncio.sleep(0.1), timeout=1.0)</code></span>
+      </div>
+
+      <div class="check-item" data-check="async-http">
+        <span class="check-box"></span>
+        <span class="check-num">7.</span>
+        <span class="check-text"><code>from pyodide.http import pyfetch; r = await pyfetch("https://httpbin.org/get"); r.status</code></span>
+      </div>
+
+      <div class="actions">
+        <a href="../index.html" class="btn">← módulos</a>
+        <button class="btn" id="btn-reset">reset</button>
+        <button class="btn primary" id="btn-validate" disabled>✓ validar módulo</button>
+      </div>
+
+      <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+    </div>
+
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+
+<script>
+(function () {
+  window.MODULE_CONFIG = {
+    id: 'm6',
+    nextModule: 'm7-pipelines.html',
+    packages: [],
+    micropipPackages: [],
+    checks: {
+      'import-asyncio': function (c) {
+        return /import\s+asyncio/.test(c);
+      },
+      'async-sleep': function (c) {
+        return /await\s+asyncio\.sleep\s*\(/.test(c);
+      },
+      'async-def': function (c) {
+        return /async\s+def\s+\w+/.test(c);
+      },
+      'gather': function (c) {
+        return /asyncio\.gather\s*\(/.test(c);
+      },
+      'semaphore': function (c) {
+        return /asyncio\.Semaphore\s*\(/.test(c);
+      },
+      'wait-for': function (c) {
+        return /asyncio\.wait_for\s*\(/.test(c);
+      },
+      'async-http': function (c) {
+        return /from\s+pyodide\.http\s+import\s+pyfetch/.test(c)
+            && /await\s+pyfetch\s*\(/.test(c);
+      }
+    }
+  };
+})();
+</script>
+<script src="../assets/js/pycyber.js"></script>
+
+</body>
+</html>

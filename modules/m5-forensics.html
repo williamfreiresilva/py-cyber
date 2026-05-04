@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M5 · SOC &amp; CSIRT Forensics — py-cyber</title>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+</head>
+<body>
+
+<nav class="topbar">
+  <span class="logo">PY·CYBER</span>
+  <div class="nav-modules">
+    <a href="../index.html">início</a>
+    <a href="m0-setup.html">M0 · Setup</a>
+    <a href="m1-os-files.html">M1 · OS &amp; Files</a>
+    <a href="m2-data.html">M2 · Data</a>
+    <a href="m3-apis.html">M3 · APIs</a>
+    <a href="m4-appsec.html">M4 · AppSec</a>
+    <a href="m5-forensics.html" class="active">M5 · SOC</a>
+    <a href="m6-async.html">M6 · Async</a>
+    <a href="m7-pipelines.html">M7 · Pipelines</a>
+  </div>
+</nav>
+
+<main class="main">
+
+  <section class="theory">
+    <div class="module-tag">MODULE 5</div>
+    <h1>SOC &amp; CSIRT <span class="accent">Forensics</span></h1>
+    <p class="subtitle">Timeline forense, regex de IOC, hashing de evidência, criptografia e resposta a incidente.</p>
+    <span class="badge">RESPONSE</span>
+
+    <h2>O dia a dia do CSIRT</h2>
+    <p>
+      Resposta a incidente é triagem em ritmo de relógio. Você recebe um alerta,
+      precisa: extrair IOCs do log, hashear evidência pra cadeia de custódia,
+      construir timeline cruzando fontes, decidir se isola o host. Python é a
+      cola entre todas essas tarefas.
+    </p>
+
+    <div class="grid-2">
+      <div class="info-card">
+        <div class="title">CASOS REAIS</div>
+        <ul>
+          <li>Extrair IPs/hashes/URLs de um log</li>
+          <li>Construir timeline de múltiplas fontes</li>
+          <li>Hashear bucket de evidência</li>
+          <li>Decifrar payload C2 simples</li>
+          <li>Normalizar timestamps em UTC</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="title">STACK DESTE MÓDULO</div>
+        <ul>
+          <li><code class="inline">re</code> — extração de IOCs</li>
+          <li><code class="inline">datetime</code> — timeline</li>
+          <li><code class="inline">dateutil</code> — parser flexível</li>
+          <li><code class="inline">hashlib</code> — chain of custody</li>
+          <li><code class="inline">cryptography</code> — Fernet/AES</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="warning">
+      <span class="label">⚠ FERRAMENTAS QUE NÃO RODAM NO BROWSER</span>
+      <code class="inline">scapy</code> (pcap), <code class="inline">paramiko</code> (SSH),
+      <code class="inline">volatility3</code> (memory), <code class="inline">pefile</code>
+      (binários) — todos exigem Python local. Aqui foco no que dá pra exercitar no
+      browser: regex, datetime, hashing, criptografia simétrica.
+    </div>
+
+    <h2>IOC extraction com regex</h2>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> re
+
+evento = <span class="str">"""
+2024-10-12T09:14:01Z host=srv01 user=admin
+src_ip=45.33.32.156 dst_ip=10.0.0.42
+url=http://malicious.example.com/payload.exe
+hash=5d41402abc4b2a76b9719d911017c592
+sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+domain=evil.example.org
+"""</span>
+
+PATTERNS = {
+    <span class="str">"ipv4"</span>: <span class="str">r"\b(?:\d{1,3}\.){3}\d{1,3}\b"</span>,
+    <span class="str">"md5"</span>: <span class="str">r"\b[a-fA-F0-9]{32}\b"</span>,
+    <span class="str">"sha256"</span>: <span class="str">r"\b[a-fA-F0-9]{64}\b"</span>,
+    <span class="str">"url"</span>: <span class="str">r"https?://[^\s]+"</span>,
+    <span class="str">"domain"</span>: <span class="str">r"\b[a-z0-9-]+\.[a-z]{2,}(?:\.[a-z]{2,})?\b"</span>,
+}
+
+<span class="kw">def</span> <span class="fn">extract_iocs</span>(text: str) -&gt; dict:
+    <span class="kw">return</span> {k: <span class="fn">list</span>(<span class="fn">set</span>(re.<span class="fn">findall</span>(p, text))) <span class="kw">for</span> k, p <span class="kw">in</span> PATTERNS.<span class="fn">items</span>()}
+
+<span class="fn">extract_iocs</span>(evento)</pre>
+
+    <h2>Timestamps — sempre UTC, sempre ISO 8601</h2>
+    <p>
+      Cada fonte usa um formato diferente. A regra de ouro: parse na entrada,
+      converte pra UTC, armazena como ISO 8601. Comparações ficam triviais.
+    </p>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">from</span> datetime <span class="kw">import</span> datetime, timezone
+<span class="kw">from</span> dateutil <span class="kw">import</span> parser <span class="kw">as</span> dtparser
+
+<span class="comment"># Diferentes fontes, formatos misturados</span>
+fontes = [
+    <span class="str">"2024-10-12T09:14:01Z"</span>,            <span class="comment"># SIEM (ISO)</span>
+    <span class="str">"Oct 12 09:14:01"</span>,                <span class="comment"># syslog</span>
+    <span class="str">"12/Oct/2024:09:14:01 -0300"</span>,     <span class="comment"># Apache</span>
+    <span class="str">"1728724441"</span>,                     <span class="comment"># epoch</span>
+]
+
+<span class="kw">def</span> <span class="fn">to_utc</span>(s):
+    <span class="kw">if</span> s.<span class="fn">isdigit</span>():
+        <span class="kw">return</span> datetime.<span class="fn">fromtimestamp</span>(<span class="fn">int</span>(s), tz=timezone.utc)
+    dt = dtparser.<span class="fn">parse</span>(s)
+    <span class="kw">if</span> dt.tzinfo <span class="kw">is</span> <span class="kw">None</span>:
+        dt = dt.<span class="fn">replace</span>(tzinfo=timezone.utc)
+    <span class="kw">return</span> dt.<span class="fn">astimezone</span>(timezone.utc)
+
+<span class="kw">for</span> f <span class="kw">in</span> fontes:
+    <span class="fn">print</span>(f, <span class="str">"→"</span>, <span class="fn">to_utc</span>(f).<span class="fn">isoformat</span>())</pre>
+
+    <h2>Timeline — ordenando eventos de fontes mistas</h2>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">from</span> dateutil <span class="kw">import</span> parser <span class="kw">as</span> dtparser
+
+eventos = [
+    {<span class="str">"src"</span>: <span class="str">"firewall"</span>, <span class="str">"ts"</span>: <span class="str">"2024-10-12T09:14:01Z"</span>, <span class="str">"msg"</span>: <span class="str">"DENY 45.33.32.156"</span>},
+    {<span class="str">"src"</span>: <span class="str">"sshd"</span>,     <span class="str">"ts"</span>: <span class="str">"Oct 12 09:14:03"</span>,      <span class="str">"msg"</span>: <span class="str">"Failed root login"</span>},
+    {<span class="str">"src"</span>: <span class="str">"edr"</span>,      <span class="str">"ts"</span>: <span class="str">"2024-10-12T09:13:55Z"</span>, <span class="str">"msg"</span>: <span class="str">"powershell.exe spawned"</span>},
+    {<span class="str">"src"</span>: <span class="str">"proxy"</span>,    <span class="str">"ts"</span>: <span class="str">"2024-10-12T09:14:08Z"</span>, <span class="str">"msg"</span>: <span class="str">"GET evil.example.org"</span>},
+]
+
+<span class="kw">for</span> e <span class="kw">in</span> eventos:
+    e[<span class="str">"_dt"</span>] = dtparser.<span class="fn">parse</span>(e[<span class="str">"ts"</span>])
+
+timeline = <span class="fn">sorted</span>(eventos, key=<span class="kw">lambda</span> e: e[<span class="str">"_dt"</span>])
+<span class="kw">for</span> e <span class="kw">in</span> timeline:
+    <span class="fn">print</span>(<span class="fn">f</span><span class="str">"{e['_dt'].isoformat()} [{e['src']:8}] {e['msg']}"</span>)</pre>
+
+    <h2>Hashing — chain of custody</h2>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> hashlib, json
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime, timezone
+
+<span class="kw">def</span> <span class="fn">custody_record</span>(evidence: bytes, label: str) -&gt; dict:
+    <span class="kw">return</span> {
+        <span class="str">"label"</span>: label,
+        <span class="str">"size"</span>: <span class="fn">len</span>(evidence),
+        <span class="str">"md5"</span>: hashlib.<span class="fn">md5</span>(evidence).<span class="fn">hexdigest</span>(),
+        <span class="str">"sha1"</span>: hashlib.<span class="fn">sha1</span>(evidence).<span class="fn">hexdigest</span>(),
+        <span class="str">"sha256"</span>: hashlib.<span class="fn">sha256</span>(evidence).<span class="fn">hexdigest</span>(),
+        <span class="str">"collected_at"</span>: datetime.<span class="fn">now</span>(timezone.utc).<span class="fn">isoformat</span>(),
+    }
+
+evidencia = <span class="str">b"dump_de_memoria_ou_arquivo_suspeito"</span>
+record = <span class="fn">custody_record</span>(evidencia, <span class="str">"hd_imagem_01"</span>)
+<span class="fn">print</span>(json.<span class="fn">dumps</span>(record, indent=<span class="num">2</span>))</pre>
+
+    <div class="tip">
+      <span class="label">DICA DE CAMPO</span>
+      Toda evidência ganha 3 hashes (MD5, SHA1, SHA256) e timestamp UTC no momento
+      da coleta. MD5 segue presente porque ferramentas legadas/AVs usam — não pra
+      segurança, pra compatibilidade de IOC.
+    </div>
+
+    <h2>Criptografia simétrica — Fernet</h2>
+    <p>
+      Fernet (do <code class="inline">cryptography</code>) é AES-128-CBC + HMAC-SHA256
+      empacotado de forma segura por padrão. Use pra cifrar artefato sensível
+      antes de enviar pra storage compartilhado.
+    </p>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">from</span> cryptography.fernet <span class="kw">import</span> Fernet
+
+<span class="comment"># Gera chave (guarde em vault, nunca em código!)</span>
+key = Fernet.<span class="fn">generate_key</span>()
+cipher = <span class="fn">Fernet</span>(key)
+
+<span class="comment"># Cifrar relatório de incidente</span>
+relatorio = <span class="str">b"IR-2024-042: lateral movement detectado em srv01"</span>
+token = cipher.<span class="fn">encrypt</span>(relatorio)
+<span class="fn">print</span>(<span class="str">"cifrado:"</span>, token[:<span class="num">40</span>], <span class="str">"..."</span>)
+
+<span class="comment"># Decifrar</span>
+plaintext = cipher.<span class="fn">decrypt</span>(token)
+<span class="fn">print</span>(<span class="str">"plaintext:"</span>, plaintext)</pre>
+
+    <h2>Hash de senhas — nunca cifre, hash com salt</h2>
+<pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> hmac, hashlib
+
+<span class="comment"># HMAC — assinar payload pra detectar tampering</span>
+<span class="comment"># (em produção, use bcrypt/argon2 pra senhas — não rodam no Pyodide)</span>
+secret = <span class="str">b"chave_compartilhada_do_vault"</span>
+payload = <span class="str">b"IR-2024-042:status=contained"</span>
+
+assinatura = hmac.<span class="fn">new</span>(secret, payload, hashlib.sha256).<span class="fn">hexdigest</span>()
+<span class="fn">print</span>(assinatura)
+
+<span class="comment"># Verificação resistente a timing attack</span>
+recebido = assinatura
+hmac.<span class="fn">compare_digest</span>(assinatura, recebido)</pre>
+
+    <div class="warning">
+      <span class="label">⚠ NUNCA</span>
+      MD5/SHA1 puro pra senha. Sempre <code class="inline">pbkdf2_hmac</code>,
+      <code class="inline">bcrypt</code>, <code class="inline">scrypt</code> ou
+      <code class="inline">argon2</code> com salt aleatório por usuário e
+      <strong>centenas de milhares</strong> de iterações.
+    </div>
+
+    <h2>Desafio do módulo</h2>
+    <p>
+      Construa <code class="inline">triage_incident(log_text)</code> que:
+      (1) extrai todos os IOCs (IPs, hashes, URLs, domínios) com regex,
+      (2) parseia todos os timestamps que encontrar e ordena cronologicamente,
+      (3) gera registro de cadeia de custódia com hash do log,
+      (4) cifra o resultado final com Fernet e devolve <code class="inline">(token, key)</code>
+      pronto pra envio seguro.
+    </p>
+  </section>
+
+  <section class="right-pane">
+
+    <div class="repl-header">
+      <div class="repl-dots">
+        <span class="dot r"></span>
+        <span class="dot y"></span>
+        <span class="dot g"></span>
+      </div>
+      <span class="repl-title">python — pyodide 3.11 (wasm)</span>
+      <span class="repl-status loading" id="status">CARREGANDO</span>
+    </div>
+
+    <div id="terminal"></div>
+
+    <div class="checklist">
+      <h4>CHECKLIST DO MÓDULO</h4>
+      <p class="desc">Clique para preencher o REPL ou digite. Detecção automática.</p>
+
+      <div class="check-item" data-check="ioc-regex">
+        <span class="check-box"></span>
+        <span class="check-num">1.</span>
+        <span class="check-text"><code>import re; re.findall(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "src=45.33.32.156 dst=10.0.0.1")</code></span>
+      </div>
+
+      <div class="check-item" data-check="datetime-utc">
+        <span class="check-box"></span>
+        <span class="check-num">2.</span>
+        <span class="check-text"><code>from datetime import datetime, timezone; datetime.now(timezone.utc).isoformat()</code></span>
+      </div>
+
+      <div class="check-item" data-check="dateutil-parse">
+        <span class="check-box"></span>
+        <span class="check-num">3.</span>
+        <span class="check-text"><code>from dateutil import parser; parser.parse("2024-10-12T09:14:01-03:00")</code></span>
+      </div>
+
+      <div class="check-item" data-check="custody-hash">
+        <span class="check-box"></span>
+        <span class="check-num">4.</span>
+        <span class="check-text"><code>import hashlib; hashlib.sha256(b"evidence").hexdigest()</code></span>
+      </div>
+
+      <div class="check-item" data-check="fernet-key">
+        <span class="check-box"></span>
+        <span class="check-num">5.</span>
+        <span class="check-text"><code>from cryptography.fernet import Fernet; k = Fernet.generate_key(); k</code></span>
+      </div>
+
+      <div class="check-item" data-check="fernet-encrypt">
+        <span class="check-box"></span>
+        <span class="check-num">6.</span>
+        <span class="check-text"><code>c = Fernet(k); t = c.encrypt(b"IR-042 secret"); c.decrypt(t)</code></span>
+      </div>
+
+      <div class="check-item" data-check="hmac-sign">
+        <span class="check-box"></span>
+        <span class="check-num">7.</span>
+        <span class="check-text"><code>import hmac, hashlib; hmac.new(b"secret", b"payload", hashlib.sha256).hexdigest()</code></span>
+      </div>
+
+      <div class="actions">
+        <a href="../index.html" class="btn">← módulos</a>
+        <button class="btn" id="btn-reset">reset</button>
+        <button class="btn primary" id="btn-validate" disabled>✓ validar módulo</button>
+      </div>
+
+      <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+    </div>
+
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+
+<script>
+(function () {
+  window.MODULE_CONFIG = {
+    id: 'm5',
+    nextModule: 'm6-async.html',
+    packages: ['cryptography', 'python-dateutil'],
+    micropipPackages: [],
+    checks: {
+      'ioc-regex': function (c) {
+        return /import\s+re/.test(c)
+            && (/re\.findall\s*\(/.test(c) || /re\.search\s*\(/.test(c))
+            && /\\d\{1,3\}|$$a-fA-F0-9$$|https\?:|\\b/.test(c);
+      },
+      'datetime-utc': function (c) {
+        return /from\s+datetime\s+import/.test(c)
+            && /timezone\.utc/.test(c);
+      },
+      'dateutil-parse': function (c) {
+        return /from\s+dateutil/.test(c)
+            && /parser\.parse\s*\(/.test(c);
+      },
+      'custody-hash': function (c) {
+        return /hashlib\.(sha256|sha1|md5|sha512)\s*\(/.test(c)
+            && /\.hexdigest\s*\(/.test(c);
+      },
+      'fernet-key': function (c) {
+        return /from\s+cryptography\.fernet\s+import\s+Fernet/.test(c)
+            && /Fernet\.generate_key\s*\(/.test(c);
+      },
+      'fernet-encrypt': function (c) {
+        return /Fernet\s*\(/.test(c)
+            && /\.encrypt\s*\(/.test(c)
+            && /\.decrypt\s*\(/.test(c);
+      },
+      'hmac-sign': function (c) {
+        return /import\s+hmac/.test(c)
+            && /hmac\.new\s*\(/.test(c)
+            && /\.hexdigest\s*\(/.test(c);
+      }
+    }
+  };
+})();
+</script>
+<script src="../assets/js/pycyber.js"></script>
+
+</body>
+</html>

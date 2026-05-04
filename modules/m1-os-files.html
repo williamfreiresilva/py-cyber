@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M1 · OS & Files · py-cyber</title>
+<link rel="stylesheet" href="../assets/css/theme.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">PY·CYBER</div>
+  <div class="nav-modules">
+    <a href="../index.html">início</a>
+    <a href="m0-setup.html">M0 · Setup</a>
+    <a href="m1-os-files.html" class="active">M1 · OS &amp; Files</a>
+    <a href="m2-data.html">M2 · Data</a>
+    <a href="m3-apis.html">M3 · APIs</a>
+    <a href="m4-appsec.html">M4 · AppSec</a>
+    <a href="m5-soc.html">M5 · SOC</a>
+    <a href="m6-async.html">M6 · Async</a>
+        <a href="m7-pipelines.html">M7 · Pipelines</a>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="theory">
+    <div class="module-tag">MODULE 1</div>
+    <h1>File System &amp; <span class="accent">OS Manipulation</span></h1>
+    <div class="subtitle">Manipule arquivos, processos e o filesystem programaticamente — base de toda automação forense e de cleanup.</div>
+    <div class="badge">CORE</div>
+
+    <h2>Por que isso importa em segurança</h2>
+    <p>Resposta a incidente é, em essência, três coisas: <strong>encontrar arquivos</strong>, <strong>ler arquivos</strong> e <strong>copiar arquivos</strong> com integridade. Coletar artefatos de <code class="inline">/var/log</code>, varrer um diretório atrás de IOCs, listar processos suspeitos, mover evidência para um bucket forense — tudo passa pelo módulo <code class="inline">os</code>, <code class="inline">pathlib</code> e <code class="inline">shutil</code>.</p>
+
+    <div class="grid-2">
+      <div class="info-card">
+        <div class="title">CASOS REAIS</div>
+        <ul>
+          <li>Coletar todos os <code class="inline">.log</code> dos últimos 7 dias</li>
+          <li>Hashear todos arquivos de um diretório suspeito</li>
+          <li>Listar processos com nome estranho</li>
+          <li>Copiar evidência preservando metadata</li>
+          <li>Criar diretórios de quarentena</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="title">STDLIB QUE VOCÊ USA</div>
+        <ul>
+          <li><code class="inline">pathlib</code> — caminhos modernos, OO</li>
+          <li><code class="inline">os</code> — variáveis de ambiente, PIDs</li>
+          <li><code class="inline">shutil</code> — copiar, mover, comprimir</li>
+          <li><code class="inline">glob</code> — busca por padrão</li>
+          <li><code class="inline">sys</code> — argv, exit codes</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>pathlib — esqueça os.path.join()</h2>
+    <p><code class="inline">pathlib.Path</code> é a forma moderna e cross-platform. Ele opera com <strong>operador <code class="inline">/</code></strong> em vez de concatenação manual.</p>
+    <pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">from</span> pathlib <span class="kw">import</span> Path
+
+<span class="comment"># Diretório atual</span>
+cwd = Path.cwd()
+
+<span class="comment"># Construir caminhos com /</span>
+log_dir = Path(<span class="str">"/var/log"</span>) / <span class="str">"app"</span> / <span class="str">"errors.log"</span>
+
+<span class="comment"># Propriedades úteis</span>
+log_dir.name        <span class="comment"># "errors.log"</span>
+log_dir.suffix      <span class="comment"># ".log"</span>
+log_dir.parent      <span class="comment"># Path("/var/log/app")</span>
+log_dir.exists()    <span class="comment"># bool</span>
+log_dir.is_file()   <span class="comment"># bool</span>
+
+<span class="comment"># Listar arquivos de um diretório</span>
+[p <span class="kw">for</span> p <span class="kw">in</span> Path(<span class="str">"."</span>).iterdir() <span class="kw">if</span> p.is_file()]</pre>
+
+    <h2>Buscar arquivos — glob recursivo</h2>
+    <p>Para forense, <code class="inline">rglob</code> (recursivo) é o pão-com-manteiga. Encontra todos os arquivos que batem um padrão a partir de um diretório raiz.</p>
+    <pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">from</span> pathlib <span class="kw">import</span> Path
+
+<span class="comment"># Todos os .log abaixo de /var/log</span>
+logs = <span class="fn">list</span>(Path(<span class="str">"/var/log"</span>).rglob(<span class="str">"*.log"</span>))
+
+<span class="comment"># Múltiplos padrões — caso forense</span>
+suspicious = []
+<span class="kw">for</span> ext <span class="kw">in</span> [<span class="str">"*.exe"</span>, <span class="str">"*.dll"</span>, <span class="str">"*.ps1"</span>]:
+    suspicious += <span class="fn">list</span>(Path(<span class="str">"/tmp"</span>).rglob(ext))</pre>
+
+    <h2>Variáveis de ambiente — onde guardar API keys</h2>
+    <pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> os
+
+<span class="comment"># Ler com default seguro</span>
+api_key = os.getenv(<span class="str">"VT_API_KEY"</span>, <span class="str">""</span>)
+
+<span class="comment"># Ler todas (cuidado: pode ter dados sensíveis)</span>
+<span class="fn">len</span>(os.environ)
+
+<span class="comment"># Diretório home do usuário (cross-platform)</span>
+<span class="kw">from</span> pathlib <span class="kw">import</span> Path
+Path.home()</pre>
+
+    <div class="warning">
+      <span class="label">⚠ NUNCA</span>
+      Faça <code class="inline">os.environ["KEY"]</code> direto sem default — levanta <code class="inline">KeyError</code> se a variável não existir e quebra o script. Use sempre <code class="inline">os.getenv("KEY", default)</code>.
+    </div>
+
+    <h2>shutil — copiar com integridade</h2>
+    <p>Em forense, copiar mantendo metadata (mtime, permissões) é obrigatório. Use <code class="inline">shutil.copy2</code>, nunca <code class="inline">copy</code>.</p>
+    <pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">import</span> shutil
+<span class="kw">from</span> pathlib <span class="kw">import</span> Path
+
+<span class="comment"># Copiar preservando metadata</span>
+shutil.copy2(<span class="str">"/var/log/auth.log"</span>, <span class="str">"/forensics/case-042/"</span>)
+
+<span class="comment"># Comprimir um diretório inteiro (evidência)</span>
+shutil.make_archive(<span class="str">"case-042-evidence"</span>, <span class="str">"zip"</span>, <span class="str">"/forensics/case-042"</span>)
+
+<span class="comment"># Espaço em disco (antes de coletar)</span>
+total, used, free = shutil.disk_usage(<span class="str">"/"</span>)</pre>
+
+    <h2>Lendo arquivos do jeito certo</h2>
+    <p>Sempre <code class="inline">with open(...)</code> — context manager fecha o handle mesmo se der exceção. Para logs grandes, <strong>nunca</strong> use <code class="inline">.read()</code> — itere linha a linha.</p>
+    <pre class="code-block"><span class="lang-tag">PYTHON</span><span class="comment"># RUIM — carrega 2GB de log na RAM</span>
+content = <span class="fn">open</span>(<span class="str">"/var/log/huge.log"</span>).read()
+
+<span class="comment"># BOM — streaming, memória constante</span>
+<span class="kw">with</span> <span class="fn">open</span>(<span class="str">"/var/log/huge.log"</span>) <span class="kw">as</span> f:
+    <span class="kw">for</span> line <span class="kw">in</span> f:
+        <span class="kw">if</span> <span class="str">"FAILED"</span> <span class="kw">in</span> line:
+            <span class="fn">print</span>(line.strip())
+
+<span class="comment"># Pathlib tem atalhos:</span>
+<span class="kw">from</span> pathlib <span class="kw">import</span> Path
+texto = Path(<span class="str">"config.yaml"</span>).read_text()
+linhas = Path(<span class="str">"ips.txt"</span>).read_text().splitlines()</pre>
+
+    <div class="tip">
+      <span class="label">💡 PADRÃO SOC</span>
+      Para parsing de logs em produção use <code class="inline">pathlib + iteração linha a linha + regex compilada</code>. Isso processa GBs sem estourar RAM.
+    </div>
+
+    <h2>Sandbox WASM — o que esperar</h2>
+    <p>O Pyodide tem um <strong>filesystem virtual</strong> (MEMFS) — você pode criar arquivos, escrever, ler, mas <strong>nada persiste</strong> entre sessões. Use isso a seu favor para praticar:</p>
+    <pre class="code-block"><span class="lang-tag">PYTHON</span><span class="kw">from</span> pathlib <span class="kw">import</span> Path
+
+<span class="comment"># Criar diretório no sandbox</span>
+Path(<span class="str">"/tmp/lab"</span>).mkdir(exist_ok=<span class="kw">True</span>)
+
+<span class="comment"># Escrever um log fake para praticar parsing</span>
+Path(<span class="str">"/tmp/lab/auth.log"</span>).write_text(
+    <span class="str">"Failed password for root from 10.0.0.5\n"</span>
+    <span class="str">"Accepted password for ana from 10.0.0.10\n"</span>
+)
+
+<span class="comment"># Ler de volta</span>
+Path(<span class="str">"/tmp/lab/auth.log"</span>).read_text()</pre>
+
+    <h2>Exercícios deste módulo</h2>
+    <p>O checklist à direita cobre os 6 padrões críticos. Comece pelo item 1 e siga em ordem — cada um prepara o próximo.</p>
+  </div>
+
+  <div class="right-pane">
+    <div class="repl-header">
+      <div class="repl-dots"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div></div>
+      <div class="repl-title">python — pyodide 3.11 (wasm)</div>
+      <div class="repl-status loading" id="status">CARREGANDO...</div>
+    </div>
+
+    <div id="terminal"></div>
+
+    <div class="checklist">
+      <h4>CHECKLIST DO MÓDULO</h4>
+      <div class="desc">Execute os comandos no REPL. Detecção automática.</div>
+
+      <div class="check-item" data-check="cwd">
+        <div class="check-box"></div><div class="check-num">1.</div>
+        <div class="check-text">from pathlib import Path; Path.cwd()</div>
+      </div>
+      <div class="check-item" data-check="mkdir">
+        <div class="check-box"></div><div class="check-num">2.</div>
+        <div class="check-text">Path("/tmp/lab").mkdir(exist_ok=True)</div>
+      </div>
+      <div class="check-item" data-check="writefile">
+        <div class="check-box"></div><div class="check-num">3.</div>
+        <div class="check-text">Path("/tmp/lab/test.log").write_text("FAILED login\nOK login\n")</div>
+      </div>
+      <div class="check-item" data-check="readfile">
+        <div class="check-box"></div><div class="check-num">4.</div>
+        <div class="check-text">Path("/tmp/lab/test.log").read_text()</div>
+      </div>
+      <div class="check-item" data-check="rglob">
+        <div class="check-box"></div><div class="check-num">5.</div>
+        <div class="check-text">list(Path("/tmp").rglob("*.log"))</div>
+      </div>
+      <div class="check-item" data-check="getenv">
+        <div class="check-box"></div><div class="check-num">6.</div>
+        <div class="check-text">import os; os.getenv("HOME", "default")</div>
+      </div>
+
+      <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+      <div class="actions">
+        <a href="../index.html" class="btn">← módulos</a>
+        <button class="btn" id="btn-reset">reset</button>
+        <button class="btn primary" id="btn-validate" disabled>✓ validar módulo</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.MODULE_CONFIG = {
+  id: 'm1',
+  nextModule: 'm2-data.html',
+  checks: {
+    cwd: function (c) {
+      return c.indexOf('Path.cwd') !== -1
+          || c.indexOf('from pathlib') !== -1
+          || c.indexOf('import pathlib') !== -1;
+    },
+    mkdir: function (c) {
+      return /\.mkdir\s*\(/.test(c);
+    },
+    writefile: function (c) {
+      return /\.write_text\s*\(/.test(c)
+          || (/open\s*\(/.test(c) && /['"]w['"]/.test(c));
+    },
+    readfile: function (c) {
+      return /\.read_text\s*\(/.test(c)
+          || (/open\s*\(/.test(c) && /\.read\s*\(/.test(c));
+    },
+    rglob: function (c) {
+      return /\.rglob\s*\(/.test(c) || /\.glob\s*\(/.test(c);
+    },
+    getenv: function (c) {
+      return /os\.getenv\s*\(/.test(c)
+          || c.indexOf('os.environ') !== -1;
+    }
+  }
+};
+</script>
+<script src="../assets/js/pycyber.js"></script>
+</body>
+</html>
